@@ -55,6 +55,16 @@ extension HotKey {
     }
 }
 
+let floatingModeId = "floating"
+
+@MainActor func syncModeToFocusedWorkspace() async {
+    let target = config.floatingWorkspaces.contains(focus.workspace.name) ? floatingModeId : mainModeId
+    guard let activeMode, activeMode == mainModeId || activeMode == floatingModeId else { return }
+    if activeMode != target, config.modes[target] != nil {
+        await activateMode_nonCancellable(target)
+    }
+}
+
 struct HotkeyBinding: Equatable, Sendable {
     let modifiers: NSEvent.ModifierFlags
     let keyCode: Key
