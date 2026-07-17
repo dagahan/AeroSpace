@@ -16,9 +16,15 @@ struct MiniWorkspace: Identifiable {
     let windows: [MiniWindow]
 }
 
+@MainActor final class MissionControlViewModel: ObservableObject {
+    @Published var workspaces: [MiniWorkspace] = []
+}
+
 @MainActor enum MissionControl {
     static let workspaceOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
     private static var panel: NSPanel? = nil
+    private static var refreshTimer: Timer? = nil
+    private static var didRequestScreenCapture = false
     static var isShown: Bool { panel != nil }
 
     static func toggle() {
@@ -26,6 +32,8 @@ struct MiniWorkspace: Identifiable {
     }
 
     static func hide() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
         panel?.orderOut(nil)
         panel = nil
     }
@@ -33,7 +41,8 @@ struct MiniWorkspace: Identifiable {
     static func show() {
         if isShown { return }
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let model = capture()
+        let model = MissionControlViewModel()
+        model.workspaces = capture()
         let p = MissionControlPanel(
             contentRect: screen.frame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -45,11 +54,17 @@ struct MiniWorkspace: Identifiable {
         p.backgroundColor = .clear
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         p.contentView = NSHostingView(rootView: MissionControlView(
-            workspaces: model,
+            model: model,
             monitorAspect: mainMonitor.width / max(mainMonitor.height, 1),
         ))
         p.makeKeyAndOrderFront(nil)
         panel = p
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in
+                guard MissionControl.isShown else { return }
+                model.workspaces = MissionControl.capture()
+            }
+        }
     }
 
     static func switchTo(_ name: String) {
@@ -61,11 +76,17 @@ struct MiniWorkspace: Identifiable {
         }
     }
 
-    private static func capture() -> [MiniWorkspace] {
-        let canCapture = CGPreflightScreenCaptureAccess()
-        if !canCapture {
+    private static func preflightCanCapture() -> Bool {
+        if CGPreflightScreenCaptureAccess() { return true }
+        if !didRequestScreenCapture {
+            didRequestScreenCapture = true
             CGRequestScreenCaptureAccess()
         }
+        return false
+    }
+
+    private static func capture() -> [MiniWorkspace] {
+        let canCapture = preflightCanCapture()
         let focusedName = focus.workspace.name
         return workspaceOrder.map { name in
             let workspace = Workspace.get(byName: name)
@@ -147,15 +168,16 @@ private final class MissionControlPanel: NSPanel {
 }
 
 struct MissionControlView: View {
-    let workspaces: [MiniWorkspace]
+    @ObservedObject var model: MissionControlViewModel
     let monitorAspect: CGFloat
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.6)
+            BlurView()
+            Color.black.opacity(0.25)
             VStack(spacing: 28) {
-                row(Array(workspaces.prefix(5)))
-                row(Array(workspaces.suffix(5)))
+                row(Array(model.workspaces.prefix(5)))
+                row(Array(model.workspaces.suffix(5)))
             }
             .padding(48)
         }
@@ -169,6 +191,18 @@ struct MissionControlView: View {
             }
         }
     }
+}
+
+private struct BlurView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .fullScreenUI
+        view.state = .active
+        view.blendingMode = .behindWindow
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 private struct MiniWorkspaceCell: View {
