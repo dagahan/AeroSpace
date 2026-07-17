@@ -118,6 +118,7 @@ func refreshModel_nonCancellable() async {
         normalizeContainers()
     }
     await syncModeToFocusedWorkspace()
+    RestoreState.scheduleSave()
 }
 
 @MainActor

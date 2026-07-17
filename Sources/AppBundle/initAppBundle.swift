@@ -20,7 +20,7 @@ import Foundation
         startUnixSocketServer()
         GlobalObserver.initObserver()
         Workspace.garbageCollectUnusedWorkspaces() // init workspaces
-        _ = Workspace.all.first?.focusWorkspace()
+        _ = (RestoreState.savedFocusedWorkspace.map { Workspace.get(byName: $0) } ?? Workspace.all.first)?.focusWorkspace()
         await runHeavyCompleteRefreshSession(
             .startup,
             // It's important for the first initialization to be non cancellable
@@ -29,7 +29,9 @@ import Foundation
             layoutWorkspaces: false,
         )
         try await runLightSession(.startup, .forceRun) {
-            smartLayoutAtStartup()
+            if !RestoreState.restoreLayoutAfterStartup() {
+                smartLayoutAtStartup()
+            }
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }
     }

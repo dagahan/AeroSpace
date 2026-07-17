@@ -19,15 +19,21 @@ final class MacWindow: Window {
     static func getOrRegister(windowId: UInt32, macApp: MacApp) async throws -> MacWindow {
         if let existing = allWindowsMap[windowId] { return existing }
         let rect = try await macApp.getAxRect(windowId, .cancellable)
-        let data = try await unbindAndGetBindingDataForNewWindow(
+        let restored = isStartup ? RestoreState.lookup(windowId) : nil
+        let targetWorkspace = restored.map { Workspace.get(byName: $0.workspace) }
+            ?? (isStartup
+                ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
+                : focus.workspace)
+        var data = try await unbindAndGetBindingDataForNewWindow(
             windowId,
             macApp,
-            isStartup
-                ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
-                : focus.workspace,
+            targetWorkspace,
             window: nil,
             .cancellable,
         )
+        if let restored, restored.isFloating, data.parent is TilingContainer {
+            data = BindingData(parent: targetWorkspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+        }
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
