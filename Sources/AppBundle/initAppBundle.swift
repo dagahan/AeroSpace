@@ -19,6 +19,7 @@ import Foundation
 
         startUnixSocketServer()
         GlobalObserver.initObserver()
+        TrackpadGestures.start()
         Workspace.garbageCollectUnusedWorkspaces() // init workspaces
         _ = (RestoreState.savedFocusedWorkspace.map { Workspace.get(byName: $0) } ?? Workspace.all.first)?.focusWorkspace()
         await runHeavyCompleteRefreshSession(
