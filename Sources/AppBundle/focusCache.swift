@@ -1,3 +1,5 @@
+import Foundation
+
 @MainActor private var lastKnownNativeFocusedWindowId: UInt32? = nil
 
 /// The data should flow (from nativeFocused to focused) and
