@@ -37,7 +37,10 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
                 .succ(io.err("Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code"))
         }
     }
-    let targetContainer: NonLeafTreeNodeObject = window.isFloating || config.floatingWorkspaces.contains(targetWorkspace.name)
+    let sourceWorkspaceIsFloating = window.nodeWorkspace.map { config.floatingWorkspaces.contains($0.name) } ?? false
+    let targetWorkspaceIsFloating = config.floatingWorkspaces.contains(targetWorkspace.name)
+    let shouldFloat = targetWorkspaceIsFloating || (window.isFloating && !sourceWorkspaceIsFloating)
+    let targetContainer: NonLeafTreeNodeObject = shouldFloat
         ? targetWorkspace.floatingWindowsContainer
         : targetWorkspace.rootTilingContainer
     window.bind(to: targetContainer, adaptiveWeight: WEIGHT_AUTO, index: index)

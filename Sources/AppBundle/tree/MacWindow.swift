@@ -91,6 +91,10 @@ final class MacWindow: Window {
                 case .tilingContainer, .floatingWindowsContainer, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
                     let deadWindowFocus = deadWindowWorkspace.toLiveFocus()
                     _ = setFocus(to: deadWindowFocus)
+                    if deadWindowWorkspace.allLeafWindowsRecursive.isEmpty {
+                        lastEmptiedFocusedWorkspaceName = deadWindowWorkspace.name
+                        lastEmptiedFocusedWorkspaceDate = .now
+                    }
                     // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
                     if focus.windowOrNil?.app.pid != app.pid {
                         // Force focus to fix macOS annoyance with focused apps without windows.
