@@ -31,7 +31,7 @@ private struct MTTouch {
 }
 
 private typealias MTContactCallback = @convention(c) (
-    UnsafeMutableRawPointer?, UnsafeMutablePointer<MTTouch>?, Int32, Double, Int32,
+    UnsafeMutableRawPointer?, UnsafeMutableRawPointer?, Int32, Double, Int32,
 ) -> Int32
 
 private typealias MTDeviceCreateListFunc = @convention(c) () -> Unmanaged<CFArray>?
@@ -41,14 +41,15 @@ private typealias MTDeviceStartFunc = @convention(c) (UnsafeMutableRawPointer, I
 nonisolated(unsafe) private var lastGestureFire: Double = 0
 nonisolated(unsafe) private var accumulatedVelY: Float = 0
 
-private let contactCallback: MTContactCallback = { _, touches, numTouches, timestamp, _ in
-    guard let touches, numTouches == 3 else {
+private let contactCallback: MTContactCallback = { _, touchesRaw, numTouches, timestamp, _ in
+    guard let touchesRaw, numTouches == 3 else {
         accumulatedVelY = 0
         return 0
     }
+    let touches = unsafe touchesRaw.assumingMemoryBound(to: MTTouch.self)
     var velY: Float = 0
     for i in 0 ..< Int(numTouches) {
-        velY += touches[i].normalizedVector.vel.y
+        velY += unsafe touches[i].normalizedVector.vel.y
     }
     velY /= Float(numTouches)
     accumulatedVelY = abs(velY) > 0.1 && (velY > 0) == (accumulatedVelY > 0)
@@ -75,15 +76,15 @@ enum TrackpadGestures {
               let registerSym = dlsym(handle, "MTRegisterContactFrameCallback"),
               let startSym = dlsym(handle, "MTDeviceStart")
         else { return }
-        let createList = unsafeBitCast(createListSym, to: MTDeviceCreateListFunc.self)
-        let register = unsafeBitCast(registerSym, to: MTRegisterContactFrameCallbackFunc.self)
-        let startDevice = unsafeBitCast(startSym, to: MTDeviceStartFunc.self)
+        let createList = unsafe unsafeBitCast(createListSym, to: MTDeviceCreateListFunc.self)
+        let register = unsafe unsafeBitCast(registerSym, to: MTRegisterContactFrameCallbackFunc.self)
+        let startDevice = unsafe unsafeBitCast(startSym, to: MTDeviceStartFunc.self)
         guard let devices = createList()?.takeRetainedValue() else { return }
         for i in 0 ..< CFArrayGetCount(devices) {
-            guard let device = CFArrayGetValueAtIndex(devices, i) else { continue }
-            let mutableDevice = UnsafeMutableRawPointer(mutating: device)
-            register(mutableDevice, contactCallback)
-            _ = startDevice(mutableDevice, 0)
+            guard let device = unsafe CFArrayGetValueAtIndex(devices, i) else { continue }
+            let mutableDevice = unsafe UnsafeMutableRawPointer(mutating: device)
+            unsafe register(mutableDevice, contactCallback)
+            _ = unsafe startDevice(mutableDevice, 0)
         }
     }
 }
