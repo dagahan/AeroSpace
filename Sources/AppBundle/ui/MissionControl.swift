@@ -27,8 +27,7 @@ struct MiniWorkspace: Identifiable {
     private static var model: MissionControlViewModel? = nil
     private static var refreshTimer: Timer? = nil
     private static var didRequestScreenCapture = false
-    // Windows are captured once per open (not on every refresh tick): continuous capture keeps
-    // macOS's purple screen-recording indicator and "capturing your screen" alerts alive.
+    // Fallback for windows whose live capture transiently fails (kept only while the overlay is open).
     private static var imageCache: [UInt32: CGImage] = [:]
     static var isShown: Bool { panel != nil }
 
@@ -57,7 +56,7 @@ struct MiniWorkspace: Identifiable {
         if isShown { return }
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let viewModel = MissionControlViewModel()
-        viewModel.workspaces = capture(withImages: true)
+        viewModel.workspaces = capture()
         viewModel.selectedName = focus.workspace.name
         model = viewModel
         let p = MissionControlPanel(
@@ -81,7 +80,7 @@ struct MiniWorkspace: Identifiable {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
                 guard isShown, let model else { return }
-                model.workspaces = capture(withImages: false)
+                model.workspaces = capture()
             }
         }
     }
@@ -137,8 +136,8 @@ struct MiniWorkspace: Identifiable {
         return false
     }
 
-    private static func capture(withImages: Bool) -> [MiniWorkspace] {
-        let canCapture = withImages && preflightCanCapture()
+    private static func capture() -> [MiniWorkspace] {
+        let canCapture = preflightCanCapture()
         let focusedName = focus.workspace.name
         return workspaceOrder.map { name in
             let workspace = Workspace.get(byName: name)
