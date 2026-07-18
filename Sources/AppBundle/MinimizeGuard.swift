@@ -5,6 +5,12 @@ import Foundation
 nonisolated(unsafe) private var guardedRects: [CGRect] = []
 private let rectsLock = NSLock()
 
+private func storeGuardedRects(_ rects: [CGRect]) {
+    rectsLock.lock()
+    guardedRects = rects
+    rectsLock.unlock()
+}
+
 private let tapCallback: CGEventTapCallBack = { _, type, event, _ in
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         DispatchQueue.main.async {
@@ -48,13 +54,10 @@ private let tapCallback: CGEventTapCallBack = { _, type, event, _ in
         if !config.floatingWorkspaces.contains(workspace.name) {
             for window in workspace.allLeafWindowsRecursive {
                 guard let macWindow = window as? MacWindow else { continue }
-                guard let rect = try? await macWindow.macApp.getMinimizeButtonRect(window.windowId, .nonCancellable),
-                      let rect else { continue }
+                guard let rect = try? await macWindow.macApp.getMinimizeButtonRect(window.windowId, .nonCancellable) else { continue }
                 rects.append(CGRect(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height).insetBy(dx: -2, dy: -2))
             }
         }
-        rectsLock.lock()
-        guardedRects = rects
-        rectsLock.unlock()
+        storeGuardedRects(rects)
     }
 }
