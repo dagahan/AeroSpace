@@ -6,20 +6,15 @@ import Common
     private static var currentWindowId: UInt32? = nil
     private static var seenWindowIds: Set<UInt32> = []
 
-    static func sync() async {
+    static func sync() {
         guard config.animationsEnabled, config.focusedBorder, !MissionControl.isShown,
-              let focused = focus.windowOrNil, let macWindow = focused as? MacWindow,
+              let focused = focus.windowOrNil,
               !focused.isFullscreen,
               !(focused.parent is MacosFullscreenWindowsContainer),
               !(focused.parent is MacosMinimizedWindowsContainer),
-              !(focused.parent is MacosHiddenAppsWindowsContainer)
+              !(focused.parent is MacosHiddenAppsWindowsContainer),
+              let rect = focused.lastAppliedLayoutPhysicalRect
         else {
-            hide()
-            return
-        }
-        var rect = try? await macWindow.macApp.getAxRect(focused.windowId, .nonCancellable)
-        if rect == nil { rect = focused.lastAppliedLayoutPhysicalRect }
-        guard let rect else {
             hide()
             return
         }

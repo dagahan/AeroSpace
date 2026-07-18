@@ -119,7 +119,7 @@ func refreshModel_nonCancellable() async {
     }
     await syncModeToFocusedWorkspace()
     RestoreState.scheduleSave()
-    await BorderOverlay.sync()
+    BorderOverlay.sync()
 }
 
 @MainActor

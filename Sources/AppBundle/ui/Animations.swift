@@ -5,7 +5,7 @@ import Common
     config.animationsEnabled && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 }
 
-let easeOutQuint = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+@MainActor var easeOutQuint: CAMediaTimingFunction { CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1) }
 
 enum WorkspaceTransition: String, Sendable {
     case off, fade, slide
