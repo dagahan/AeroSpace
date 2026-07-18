@@ -35,6 +35,12 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.layoutReason = .macos(prevParentKind: parent.kind)
                         window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     case isMacosMinimized:
+                        // Minimize is banned on tiling workspaces: bounce the window straight back
+                        // without touching the tree, so nothing swaps or rearranges.
+                        if let nodeWorkspace = window.nodeWorkspace, !config.floatingWorkspaces.contains(nodeWorkspace.name) {
+                            window.asMacWindow().setNativeMinimized(false)
+                            break
+                        }
                         window.layoutReason = .macos(prevParentKind: parent.kind)
                         window.lastKnownWorkspaceName = window.nodeWorkspace?.name ?? window.lastKnownWorkspaceName
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
