@@ -120,6 +120,7 @@ func refreshModel_nonCancellable() async {
     await syncModeToFocusedWorkspace()
     RestoreState.scheduleSave()
     BorderOverlay.sync()
+    await MinimizeGuard.refresh()
 }
 
 @MainActor

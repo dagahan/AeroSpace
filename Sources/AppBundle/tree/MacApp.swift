@@ -183,6 +183,16 @@ final class MacApp: AbstractApp {
         }
     }
 
+    func getMinimizeButtonRect(_ windowId: UInt32, _ cm: CancellationMode) async throws -> Rect? {
+        try await withWindow(windowId, cm) { window, _ in
+            guard let button = window.get(Ax.minimizeButtonAttr),
+                  let topLeft = button.get(Ax.topLeftCornerAttr),
+                  let size = button.get(Ax.sizeAttr)
+            else { return nil }
+            return Rect(topLeftX: topLeft.x, topLeftY: topLeft.y, width: size.width, height: size.height)
+        }
+    }
+
     func getAxRectForTermination(_ windowId: UInt32) -> Rect? {
         let future = CompletableFuture<Rect?>()
         let job = withWindowAsync(windowId, .nonCancellable) { window, job in

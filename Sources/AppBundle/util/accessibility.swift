@@ -287,6 +287,10 @@ enum Ax {
         key: kAXCloseButtonAttribute,
         getter: castToAxUiElementMock,
     )
+    static let minimizeButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
+        key: kAXMinimizeButtonAttribute,
+        getter: castToAxUiElementMock,
+    )
     // Note! fullscreen is not the same as "zoom" (green plus)
     static let fullscreenButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
         key: kAXFullScreenButtonAttribute,
