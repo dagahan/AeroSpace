@@ -138,7 +138,9 @@ extension FormatVar {
     @MainActor func expandFormatVar(obj: AeroObj) -> Result<Primitive, InterVarExpansionError> {
         switch (obj, self) {
             case (.window(let w), .workspace):
-                return w.window.nodeWorkspace.flatMap(AeroObj.workspace).map(expandFormatVar) ?? .success(.string("NULL-WORKSPACE"))
+                let workspace = w.window.nodeWorkspace
+                    ?? w.window.lastKnownWorkspaceName.map { Workspace.get(byName: $0) }
+                return workspace.flatMap(AeroObj.workspace).map(expandFormatVar) ?? .success(.string("NULL-WORKSPACE"))
             case (.window(let w), .monitor):
                 return w.window.nodeMonitor.flatMap(AeroObj.monitor).map(expandFormatVar) ?? .success(.string("NULL-MONITOR"))
             case (.window(let w), .app):

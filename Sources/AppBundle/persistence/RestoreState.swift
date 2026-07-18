@@ -15,6 +15,7 @@ struct SavedWindow: Codable {
     var order: Int
     var weight: Double?
     var frame: SavedFrame?
+    var minimized: Bool? = nil
 }
 
 struct SavedWorkspaceLayout: Codable {
@@ -61,23 +62,36 @@ struct SavedState: Codable {
             )
         }
         for window in MacWindow.allWindows {
-            guard let workspace = window.nodeWorkspace else { continue }
+            let key = String(window.windowId)
+            let isMinimized = window.parent is MacosMinimizedWindowsContainer
+            let workspaceName: String?
+            if let workspace = window.nodeWorkspace {
+                workspaceName = workspace.name
+                window.lastKnownWorkspaceName = workspace.name
+            } else if isMinimized {
+                workspaceName = window.lastKnownWorkspaceName ?? loaded?.windows[key]?.workspace
+            } else {
+                workspaceName = nil
+            }
+            guard let workspaceName else { continue }
             let weight: Double? = (window.parent as? TilingContainer).flatMap { parent in
                 parent.layout == .tiles ? Double(window.getWeight(parent.orientation)) : nil
             }
-            let frame: SavedFrame? = if window.isFloating, workspace.isVisible,
+            let isFloating = isMinimized ? (loaded?.windows[key]?.isFloating ?? false) : window.isFloating
+            let frame: SavedFrame? = if isFloating, !isMinimized, window.nodeWorkspace?.isVisible == true,
                 let rect = window.lastAppliedLayoutPhysicalRect
             {
                 SavedFrame(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
             } else {
-                loaded?.windows[String(window.windowId)]?.frame
+                loaded?.windows[key]?.frame
             }
-            state.windows[String(window.windowId)] = SavedWindow(
-                workspace: workspace.name,
-                isFloating: window.isFloating,
+            state.windows[key] = SavedWindow(
+                workspace: workspaceName,
+                isFloating: isFloating,
                 order: window.ownIndex ?? 0,
                 weight: weight,
                 frame: frame,
+                minimized: isMinimized,
             )
         }
         loaded = state

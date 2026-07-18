@@ -36,6 +36,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     case isMacosMinimized:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
+                        window.lastKnownWorkspaceName = window.nodeWorkspace?.name ?? window.lastKnownWorkspaceName
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
                     case isMacosWindowOfHiddenApp:
                         window.layoutReason = .macos(prevParentKind: parent.kind)
@@ -44,7 +45,10 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                 }
             case .macos(let prevParentKind):
                 if !isMacosFullscreen && !isMacosMinimized && !isMacosWindowOfHiddenApp {
-                    try await exitMacOsNativeUnconventionalState(window: window, prevParentKind: prevParentKind, workspace: workspace, .cancellable)
+                    let targetWorkspace = (window.parent is MacosMinimizedWindowsContainer
+                        ? window.lastKnownWorkspaceName.map { Workspace.get(byName: $0) }
+                        : nil) ?? workspace
+                    try await exitMacOsNativeUnconventionalState(window: window, prevParentKind: prevParentKind, workspace: targetWorkspace, .cancellable)
                 }
         }
     }

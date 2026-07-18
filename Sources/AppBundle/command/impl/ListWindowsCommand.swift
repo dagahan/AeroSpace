@@ -32,6 +32,10 @@ struct ListWindowsCommand: Command {
                 workspaces = workspaces.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }
             }
             windows = workspaces.flatMap(\.allLeafWindowsRecursive)
+            let workspaceNames = Set(workspaces.map(\.name))
+            windows += macosMinimizedWindowsContainer.children
+                .filterIsInstance(of: Window.self)
+                .filter { $0.lastKnownWorkspaceName.map { workspaceNames.contains($0) } ?? false }
             if let pid = args.filteringOptions.pidFilter {
                 windows = windows.filter { $0.app.pid == pid }
             }
