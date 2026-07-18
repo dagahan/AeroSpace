@@ -48,6 +48,10 @@ struct Config: ConvenienceMutable {
     var enableNormalizationOppositeOrientationForNestedContainers: Bool = true
     var persistentWorkspaces: OrderedSet<String> = []
     var floatingWorkspaces: OrderedSet<String> = []
+    var animationsEnabled: Bool = true
+    var focusedBorder: Bool = true
+    var closeAnimation: Bool = true
+    var workspaceTransition: WorkspaceTransition = .fade
     var execOnWorkspaceChange: [String] = [] // todo deprecate
     var keyMapping = KeyMapping()
     var execConfig: ExecConfig = ExecConfig()

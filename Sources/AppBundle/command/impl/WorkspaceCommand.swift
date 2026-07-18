@@ -34,6 +34,7 @@ struct WorkspaceCommand: Command {
                     .succ(io.err("Workspace '\(workspaceName)' is already focused. Tip: use --fail-if-noop to exit with non-zero code"))
             }
         } else {
+            WorkspaceCurtain.cover(towardHigherIndex: WorkspaceCurtain.direction(from: focusedWs.name, to: workspaceName))
             return .from(bool: Workspace.get(byName: workspaceName).focusWorkspace())
         }
     }

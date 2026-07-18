@@ -142,6 +142,10 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "default-root-container-layout": Parser(\.defaultRootContainerLayout, parseLayout),
     "default-root-container-orientation": Parser(\.defaultRootContainerOrientation, parseDefaultContainerOrientation),
 
+    "animations-enabled": Parser(\.animationsEnabled, parseBool),
+    "focused-border": Parser(\.focusedBorder, parseBool),
+    "close-animation": Parser(\.closeAnimation, parseBool),
+    "workspace-transition": Parser(\.workspaceTransition, parseWorkspaceTransition),
     "start-at-login": Parser(\.startAtLogin, parseBool),
     "auto-reload-config": Parser(\.autoReloadConfig, parseBool),
     "automatically-unhide-macos-hidden-apps": Parser(\.automaticallyUnhideMacosHiddenApps, parseBool),
@@ -389,6 +393,11 @@ private func parseStartupRootContainerLayout(_ raw: OrderedJson, _ backtrace: Co
 private func parseLayout(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Layout> {
     parseString(raw, backtrace)
         .flatMap { $0.parseLayout().toResult(.init(backtrace, "Can't parse layout '\($0)'")) }
+}
+
+private func parseWorkspaceTransition(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<WorkspaceTransition> {
+    parseString(raw, backtrace)
+        .flatMap { WorkspaceTransition(rawValue: $0).toResult(.init(backtrace, "Can't parse workspace-transition '\($0)'. Possible values: off|fade|slide")) }
 }
 
 private func skipParsing<T: Sendable>(_ value: T) -> @Sendable (_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<T> {

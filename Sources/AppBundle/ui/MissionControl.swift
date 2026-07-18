@@ -19,6 +19,7 @@ struct MiniWorkspace: Identifiable {
 @MainActor final class MissionControlViewModel: ObservableObject {
     @Published var workspaces: [MiniWorkspace] = []
     @Published var selectedName: String? = nil
+    @Published var appeared = false
 }
 
 @MainActor enum MissionControl {
@@ -38,7 +39,12 @@ struct MiniWorkspace: Identifiable {
     static func hide(refocus: Bool = true) {
         refreshTimer?.invalidate()
         refreshTimer = nil
-        panel?.orderOut(nil)
+        if let closing = panel, let closingModel = model, motionAllowed {
+            withAnimation(.easeOut(duration: 0.15)) { closingModel.appeared = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { closing.orderOut(nil) }
+        } else {
+            panel?.orderOut(nil)
+        }
         panel = nil
         model = nil
         imageCache = [:]
@@ -77,6 +83,13 @@ struct MiniWorkspace: Identifiable {
         p.makeKeyAndOrderFront(nil)
         panel = p
         suspendHotkeys()
+        if motionAllowed {
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { viewModel.appeared = true }
+            }
+        } else {
+            viewModel.appeared = true
+        }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
                 guard isShown, let model else { return }
@@ -246,21 +259,29 @@ struct MissionControlView: View {
             BlurView()
             Color.black.opacity(0.25)
             VStack(spacing: 28) {
-                row(Array(model.workspaces.prefix(5)))
-                row(Array(model.workspaces.suffix(5)))
+                row(Array(model.workspaces.prefix(5)), startIndex: 0)
+                row(Array(model.workspaces.suffix(5)), startIndex: 5)
             }
             .padding(48)
+            .scaleEffect(model.appeared ? 1 : 0.98)
         }
+        .opacity(model.appeared ? 1 : 0)
         .ignoresSafeArea()
     }
 
-    private func row(_ items: [MiniWorkspace]) -> some View {
+    private func row(_ items: [MiniWorkspace], startIndex: Int) -> some View {
         HStack(spacing: 28) {
-            ForEach(items) { workspace in
+            ForEach(Array(items.enumerated()), id: \.element.id) { offset, workspace in
                 MiniWorkspaceCell(
                     workspace: workspace,
                     monitorAspect: monitorAspect,
                     isSelected: workspace.name == model.selectedName,
+                )
+                .opacity(model.appeared ? 1 : 0)
+                .offset(y: model.appeared ? 0 : 8)
+                .animation(
+                    .easeOut(duration: 0.25).delay(model.appeared ? Double(startIndex + offset) * 0.02 : 0),
+                    value: model.appeared,
                 )
             }
         }
@@ -311,7 +332,7 @@ private struct MiniWorkspaceCell: View {
             .aspectRatio(monitorAspect, contentMode: .fit)
             .scaleEffect(isSelected ? 1.04 : 1)
             .shadow(color: isSelected ? .black.opacity(0.5) : .clear, radius: 12, y: 4)
-            .animation(.easeOut(duration: 0.12), value: isSelected)
+            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
             Text(workspace.name)
                 .font(.system(size: 15, weight: workspace.isFocused || isSelected ? .bold : .regular, design: .rounded))
                 .foregroundColor(isSelected ? .white : workspace.isFocused ? .accentColor : .white.opacity(0.8))

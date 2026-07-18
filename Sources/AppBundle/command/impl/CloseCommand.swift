@@ -12,6 +12,12 @@ struct CloseCommand: Command {
         }
         // AX window count is unreliable for Electron apps (phantom AX windows), so count the
         // windows AeroSpace itself tracks (workspaces + minimized), matching the mission-control model.
+        if motionAllowed, config.closeAnimation, CGPreflightScreenCaptureAccess(),
+           let rect = window.lastAppliedLayoutPhysicalRect,
+           let image = CGWindowListCreateImage(.null, .optionIncludingWindow, window.windowId, [.boundsIgnoreFraming, .nominalResolution])
+        {
+            ProxyAnimator.popOut(image: image, frame: rect)
+        }
         let isFinder = window.macAppUnsafe.nsApp.bundleIdentifier == "com.apple.finder"
         let trackedAppWindows = MacWindow.allWindows
             .filter { $0.app.pid == window.app.pid && !($0.parent is MacosPopupWindowsContainer) }
