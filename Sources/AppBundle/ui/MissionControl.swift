@@ -18,34 +18,51 @@ struct MiniWorkspace: Identifiable {
 
 @MainActor final class MissionControlViewModel: ObservableObject {
     @Published var workspaces: [MiniWorkspace] = []
+    @Published var selectedName: String? = nil
 }
 
 @MainActor enum MissionControl {
     static let workspaceOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
     private static var panel: NSPanel? = nil
+    private static var model: MissionControlViewModel? = nil
     private static var refreshTimer: Timer? = nil
     private static var didRequestScreenCapture = false
+    // Windows are captured once per open (not on every refresh tick): continuous capture keeps
+    // macOS's purple screen-recording indicator and "capturing your screen" alerts alive.
+    private static var imageCache: [UInt32: CGImage] = [:]
     static var isShown: Bool { panel != nil }
 
     static func toggle() {
         isShown ? hide() : show()
     }
 
-    static func hide() {
+    static func hide(refocus: Bool = true) {
         refreshTimer?.invalidate()
         refreshTimer = nil
         panel?.orderOut(nil)
         panel = nil
+        model = nil
+        imageCache = [:]
+        resumeHotkeys()
+        if refocus {
+            Task {
+                try await runLightSession(.menuBarButton, .checkServerIsEnabledOrDie()) {
+                    _ = Workspace.get(byName: focus.workspace.name).focusWorkspace()
+                }
+            }
+        }
     }
 
     static func show() {
         if isShown { return }
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let model = MissionControlViewModel()
-        model.workspaces = capture()
+        let viewModel = MissionControlViewModel()
+        viewModel.workspaces = capture(withImages: true)
+        viewModel.selectedName = focus.workspace.name
+        model = viewModel
         let p = MissionControlPanel(
             contentRect: screen.frame,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false,
         )
@@ -54,25 +71,60 @@ struct MiniWorkspace: Identifiable {
         p.backgroundColor = .clear
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         p.contentView = NSHostingView(rootView: MissionControlView(
-            model: model,
+            model: viewModel,
             monitorAspect: mainMonitor.width / max(mainMonitor.height, 1),
         ))
+        NSApp.activate(ignoringOtherApps: true)
         p.makeKeyAndOrderFront(nil)
         panel = p
+        suspendHotkeys()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
-                guard MissionControl.isShown else { return }
-                model.workspaces = MissionControl.capture()
+                guard isShown, let model else { return }
+                model.workspaces = capture(withImages: false)
             }
         }
     }
 
     static func switchTo(_ name: String) {
-        hide()
+        hide(refocus: false)
         Task {
             try await runLightSession(.menuBarButton, .checkServerIsEnabledOrDie()) {
                 _ = Workspace.get(byName: name).focusWorkspace()
             }
+        }
+    }
+
+    static func moveSelection(dx: Int, dy: Int) {
+        guard let model else { return }
+        let columns = 5
+        let rows = 2
+        let current = model.selectedName.flatMap { workspaceOrder.firstIndex(of: $0) } ?? 0
+        let col = ((current % columns) + dx + columns) % columns
+        let row = ((current / columns) + dy + rows) % rows
+        model.selectedName = workspaceOrder[row * columns + col]
+    }
+
+    static func activateSelection() {
+        guard let name = model?.selectedName else { return }
+        switchTo(name)
+    }
+
+    static func select(_ name: String) {
+        model?.selectedName = name
+    }
+
+    // While the overlay is up, every AeroSpace hotkey is unregistered so alt-w/alt-hjkl/alt-shift-*
+    // can't destroy or rearrange windows behind it. Digits, arrows, enter, and esc are handled by
+    // the panel itself; F3 keeps working because Karabiner runs the CLI, not a hotkey.
+    private static func suspendHotkeys() {
+        Task { await activateMode_nonCancellable(nil) }
+    }
+
+    private static func resumeHotkeys() {
+        Task {
+            let target = config.floatingWorkspaces.contains(focus.workspace.name) ? floatingModeId : mainModeId
+            await activateMode_nonCancellable(config.modes[target] != nil ? target : mainModeId)
         }
     }
 
@@ -85,8 +137,8 @@ struct MiniWorkspace: Identifiable {
         return false
     }
 
-    private static func capture() -> [MiniWorkspace] {
-        let canCapture = preflightCanCapture()
+    private static func capture(withImages: Bool) -> [MiniWorkspace] {
+        let canCapture = withImages && preflightCanCapture()
         let focusedName = focus.workspace.name
         return workspaceOrder.map { name in
             let workspace = Workspace.get(byName: name)
@@ -97,11 +149,14 @@ struct MiniWorkspace: Identifiable {
                 .compactMap { $0 as? Window }
                 .map { window in (window, normalizedFloatingRect(window, workspace, monitorRect)) }
             let windows = (tiled + floating).map { window, rect in
-                MiniWindow(
+                if canCapture, let image = captureWindowImage(window.windowId) {
+                    imageCache[window.windowId] = image
+                }
+                return MiniWindow(
                     id: window.windowId,
                     rect: rect,
                     icon: (window as? MacWindow)?.macApp.nsApp.icon,
-                    image: canCapture ? captureWindowImage(window.windowId) : nil,
+                    image: imageCache[window.windowId],
                 )
             }
             return MiniWorkspace(name: name, isFocused: name == focusedName, windows: windows)
@@ -154,10 +209,26 @@ private final class MissionControlPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        let escKeyCode: UInt16 = 53
-        if event.keyCode == escKeyCode {
-            Task { @MainActor in MissionControl.hide() }
-            return
+        switch event.keyCode {
+            case 53: // esc
+                Task { @MainActor in MissionControl.hide() }
+                return
+            case 123: // left
+                Task { @MainActor in MissionControl.moveSelection(dx: -1, dy: 0) }
+                return
+            case 124: // right
+                Task { @MainActor in MissionControl.moveSelection(dx: 1, dy: 0) }
+                return
+            case 125: // down
+                Task { @MainActor in MissionControl.moveSelection(dx: 0, dy: 1) }
+                return
+            case 126: // up
+                Task { @MainActor in MissionControl.moveSelection(dx: 0, dy: -1) }
+                return
+            case 36, 76, 49: // return, keypad enter, space
+                Task { @MainActor in MissionControl.activateSelection() }
+                return
+            default: break
         }
         if let chars = event.charactersIgnoringModifiers, chars.count == 1, chars.allSatisfy(\.isNumber) {
             Task { @MainActor in MissionControl.switchTo(chars) }
@@ -187,7 +258,11 @@ struct MissionControlView: View {
     private func row(_ items: [MiniWorkspace]) -> some View {
         HStack(spacing: 28) {
             ForEach(items) { workspace in
-                MiniWorkspaceCell(workspace: workspace, monitorAspect: monitorAspect)
+                MiniWorkspaceCell(
+                    workspace: workspace,
+                    monitorAspect: monitorAspect,
+                    isSelected: workspace.name == model.selectedName,
+                )
             }
         }
     }
@@ -208,13 +283,14 @@ private struct BlurView: NSViewRepresentable {
 private struct MiniWorkspaceCell: View {
     let workspace: MiniWorkspace
     let monitorAspect: CGFloat
+    let isSelected: Bool
 
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { geo in
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(Color.white.opacity(isSelected ? 0.14 : 0.08))
                     ForEach(workspace.windows) { window in
                         MiniWindowView(window: window)
                             .frame(
@@ -227,15 +303,24 @@ private struct MiniWorkspaceCell: View {
                             )
                     }
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(workspace.isFocused ? Color.accentColor : Color.white.opacity(0.25), lineWidth: workspace.isFocused ? 3 : 1)
+                        .stroke(
+                            isSelected ? Color.white : workspace.isFocused ? Color.accentColor : Color.white.opacity(0.25),
+                            lineWidth: isSelected || workspace.isFocused ? 3 : 1,
+                        )
                 }
             }
             .aspectRatio(monitorAspect, contentMode: .fit)
+            .scaleEffect(isSelected ? 1.04 : 1)
+            .shadow(color: isSelected ? .black.opacity(0.5) : .clear, radius: 12, y: 4)
+            .animation(.easeOut(duration: 0.12), value: isSelected)
             Text(workspace.name)
-                .font(.system(size: 15, weight: workspace.isFocused ? .bold : .regular, design: .rounded))
-                .foregroundColor(workspace.isFocused ? .accentColor : .white.opacity(0.8))
+                .font(.system(size: 15, weight: workspace.isFocused || isSelected ? .bold : .regular, design: .rounded))
+                .foregroundColor(isSelected ? .white : workspace.isFocused ? .accentColor : .white.opacity(0.8))
         }
         .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering { MissionControl.select(workspace.name) }
+        }
         .onTapGesture { MissionControl.switchTo(workspace.name) }
     }
 }
@@ -244,7 +329,7 @@ private struct MiniWindowView: View {
     let window: MiniWindow
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             RoundedRectangle(cornerRadius: 3)
                 .fill(Color.white.opacity(0.15))
             if let image = window.image {
@@ -256,7 +341,13 @@ private struct MiniWindowView: View {
             if let icon = window.icon {
                 Image(nsImage: icon)
                     .resizable()
-                    .frame(width: 18, height: 18)
+                    .frame(width: 24, height: 24)
+                    .padding(3)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.ultraThinMaterial))
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.black.opacity(0.35)))
+                    .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.55), radius: 4, y: 1)
+                    .padding(.bottom, 3)
             }
         }
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.white.opacity(0.3), lineWidth: 0.5))
