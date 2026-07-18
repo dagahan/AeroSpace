@@ -10,9 +10,13 @@ struct CloseCommand: Command {
         guard let window = target.windowOrNil else {
             return .fail(io.err("Empty workspace"))
         }
-        // Access ax directly. Not cool :(
+        // AX window count is unreliable for Electron apps (phantom AX windows), so count the
+        // windows AeroSpace itself tracks (workspaces + minimized), matching the mission-control model.
         let isFinder = window.macAppUnsafe.nsApp.bundleIdentifier == "com.apple.finder"
-        if await (args.quitIfLastWindow && !isFinder).andAsync({ @MainActor @Sendable in (try? await window.macAppUnsafe.getAxWindowsCount(.nonCancellable)) == 1 }) {
+        let trackedAppWindows = MacWindow.allWindows
+            .filter { $0.app.pid == window.app.pid && !($0.parent is MacosPopupWindowsContainer) }
+            .count
+        if args.quitIfLastWindow, !isFinder, trackedAppWindows <= 1 {
             let app = window.macAppUnsafe
             if app.nsApp.terminate() {
                 for workspace in Workspace.all {
