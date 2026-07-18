@@ -43,7 +43,7 @@ import Common
         } else if focusChanged || overlay.alphaValue < 1 {
             overlay.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.25
+                ctx.duration = 0.085
                 ctx.timingFunction = easeOutQuint
                 overlay.animator().setFrame(target, display: true)
                 overlay.animator().alphaValue = 1
@@ -71,9 +71,14 @@ import Common
         let overlay = makeOverlayWindow(frame: .zero, level: .floating)
         let view = NSView(frame: .zero)
         view.wantsLayer = true
-        view.layer?.borderWidth = 2.5
+        view.layerUsesCoreImageFilters = true
+        view.layer?.borderWidth = 4
         view.layer?.borderColor = NSColor.controlAccentColor.cgColor
         view.layer?.cornerRadius = 11
+        if let blur = CIFilter(name: "CIGaussianBlur") {
+            blur.setValue(3.0, forKey: kCIInputRadiusKey)
+            view.layer?.filters = [blur]
+        }
         view.autoresizingMask = [.width, .height]
         overlay.contentView = view
         window = overlay
