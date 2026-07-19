@@ -143,7 +143,6 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "default-root-container-orientation": Parser(\.defaultRootContainerOrientation, parseDefaultContainerOrientation),
 
     "animations-enabled": Parser(\.animationsEnabled, parseBool),
-    "focused-border": Parser(\.focusedBorder, parseBool),
     "close-animation": Parser(\.closeAnimation, parseBool),
     "workspace-transition": Parser(\.workspaceTransition, parseWorkspaceTransition),
     "start-at-login": Parser(\.startAtLogin, parseBool),

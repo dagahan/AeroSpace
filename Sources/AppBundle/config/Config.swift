@@ -49,7 +49,6 @@ struct Config: ConvenienceMutable {
     var persistentWorkspaces: OrderedSet<String> = []
     var floatingWorkspaces: OrderedSet<String> = []
     var animationsEnabled: Bool = true
-    var focusedBorder: Bool = true
     var closeAnimation: Bool = true
     var workspaceTransition: WorkspaceTransition = .fade
     var execOnWorkspaceChange: [String] = [] // todo deprecate
