@@ -58,8 +58,11 @@ extension HotKey {
 let floatingModeId = "floating"
 
 @MainActor func syncModeToFocusedWorkspace() async {
+    // nil means hotkeys are suspended; that's only legitimate while the Mission
+    // Control overlay is open — otherwise recover instead of staying dead.
+    if MissionControl.isShown { return }
+    guard activeMode == nil || activeMode == mainModeId || activeMode == floatingModeId else { return }
     let target = config.floatingWorkspaces.contains(focus.workspace.name) ? floatingModeId : mainModeId
-    guard let activeMode, activeMode == mainModeId || activeMode == floatingModeId else { return }
     if activeMode != target, config.modes[target] != nil {
         await activateMode_nonCancellable(target)
     }

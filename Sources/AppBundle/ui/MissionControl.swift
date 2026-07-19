@@ -313,17 +313,21 @@ private struct MiniWorkspaceCell: View {
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Color.white.opacity(isSelected ? 0.14 : 0.08))
-                    ForEach(workspace.windows) { window in
-                        MiniWindowView(window: window)
-                            .frame(
-                                width: max(window.rect.width * geo.size.width - 2, 8),
-                                height: max(window.rect.height * geo.size.height - 2, 8),
-                            )
-                            .offset(
-                                x: window.rect.minX * geo.size.width + 1,
-                                y: window.rect.minY * geo.size.height + 1,
-                            )
+                    ZStack(alignment: .topLeading) {
+                        ForEach(workspace.windows) { window in
+                            MiniWindowView(window: window)
+                                .frame(
+                                    width: max(window.rect.width * geo.size.width - 2, 8),
+                                    height: max(window.rect.height * geo.size.height - 2, 8),
+                                )
+                                .offset(
+                                    x: window.rect.minX * geo.size.width + 1,
+                                    y: window.rect.minY * geo.size.height + 1,
+                                )
+                        }
                     }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(
                             isSelected ? Color.white : workspace.isFocused ? Color.accentColor : Color.white.opacity(0.25),
@@ -355,9 +359,12 @@ private struct MiniWindowView: View {
             RoundedRectangle(cornerRadius: 3)
                 .fill(Color.white.opacity(0.15))
             if let image = window.image {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                Color.clear
+                    .overlay(
+                        Image(decorative: image, scale: 1)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill),
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 3))
             }
             if let icon = window.icon {
