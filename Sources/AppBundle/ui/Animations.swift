@@ -20,6 +20,16 @@ enum WorkspaceTransition: String, Sendable {
     )
 }
 
+// Real on-screen bounds (top-left global coords) straight from the window server.
+// Works for floating windows, which never get lastAppliedLayoutPhysicalRect.
+func cgWindowTopLeftBounds(_ windowId: UInt32) -> CGRect? {
+    guard let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(windowId)) as? [[String: Any]],
+          let dict = info.first?[kCGWindowBounds as String] as? NSDictionary,
+          let bounds = CGRect(dictionaryRepresentation: dict)
+    else { return nil }
+    return bounds
+}
+
 private func scaledFrame(_ frame: NSRect, _ factor: CGFloat) -> NSRect {
     frame.insetBy(dx: frame.width * (1 - factor) / 2, dy: frame.height * (1 - factor) / 2)
 }

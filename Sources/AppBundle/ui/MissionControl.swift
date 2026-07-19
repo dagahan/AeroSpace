@@ -177,7 +177,9 @@ struct MiniWorkspace: Identifiable {
 
     private static func normalizedFloatingRect(_ window: Window, _ workspace: Workspace, _ monitorRect: Rect) -> CGRect {
         var rect: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)? = nil
-        if workspace.isVisible, let r = window.lastAppliedLayoutPhysicalRect {
+        if workspace.isVisible, let b = cgWindowTopLeftBounds(window.windowId) {
+            rect = (x: b.minX, y: b.minY, w: b.width, h: b.height)
+        } else if workspace.isVisible, let r = window.lastAppliedLayoutPhysicalRect {
             rect = (x: r.topLeftX, y: r.topLeftY, w: r.width, h: r.height)
         } else if let saved = RestoreState.lookup(window.windowId)?.frame {
             rect = (x: CGFloat(saved.x), y: CGFloat(saved.y), w: CGFloat(saved.width), h: CGFloat(saved.height))

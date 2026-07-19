@@ -79,9 +79,9 @@ struct SavedState: Codable {
             }
             let isFloating = isMinimized ? (loaded?.windows[key]?.isFloating ?? false) : window.isFloating
             let frame: SavedFrame? = if isFloating, !isMinimized, window.nodeWorkspace?.isVisible == true,
-                let rect = window.lastAppliedLayoutPhysicalRect
+                let bounds = cgWindowTopLeftBounds(window.windowId)
             {
-                SavedFrame(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
+                SavedFrame(x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height)
             } else {
                 loaded?.windows[key]?.frame
             }
