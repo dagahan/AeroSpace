@@ -78,8 +78,9 @@ struct SavedState: Codable {
                 parent.layout == .tiles ? Double(window.getWeight(parent.orientation)) : nil
             }
             let isFloating = isMinimized ? (loaded?.windows[key]?.isFloating ?? false) : window.isFloating
-            let frame: SavedFrame? = if isFloating, !isMinimized, window.nodeWorkspace?.isVisible == true,
-                let bounds = cgWindowTopLeftBounds(window.windowId)
+            let frame: SavedFrame? = if isFloating, !isMinimized, let ws = window.nodeWorkspace, ws.isVisible,
+                let bounds = cgWindowTopLeftBounds(window.windowId),
+                mostlyOnScreen(bounds, ws.workspaceMonitor)
             {
                 SavedFrame(x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height)
             } else {
@@ -100,13 +101,31 @@ struct SavedState: Codable {
         try? data.write(to: url, options: .atomic)
     }
 
+    // Corner-hidden windows get captured at garbage coordinates; a frame that is
+    // mostly offscreen is contamination, never user intent.
+    private static func mostlyOnScreen(_ bounds: CGRect, _ monitor: any Monitor) -> Bool {
+        let v = monitor.visibleRect
+        let overlap = bounds.intersection(CGRect(x: v.topLeftX, y: v.topLeftY, width: v.width, height: v.height))
+        return !overlap.isNull && overlap.width * overlap.height >= bounds.width * bounds.height * 0.5
+    }
+
+    static func restoreFloatingFrame(_ window: MacWindow) {
+        guard let saved = lookup(window.windowId), saved.isFloating, let frame = saved.frame else { return }
+        let v = (window.nodeWorkspace?.workspaceMonitor ?? mainMonitor).visibleRect
+        let width = min(frame.width, v.width)
+        let height = min(frame.height, v.height)
+        let x = min(max(frame.x, v.topLeftX), v.topLeftX + v.width - width)
+        let y = min(max(frame.y, v.topLeftY), v.topLeftY + v.height - height)
+        window.setAxFrame(CGPoint(x: x, y: y), CGSize(width: width, height: height))
+    }
+
     @discardableResult
     static func restoreLayoutAfterStartup() -> Bool {
         guard let state = loaded else { return false }
         var restoredAnything = false
         for window in MacWindow.allWindows {
-            guard let saved = lookup(window.windowId), saved.isFloating, let frame = saved.frame else { continue }
-            window.setAxFrame(CGPoint(x: frame.x, y: frame.y), CGSize(width: frame.width, height: frame.height))
+            guard let saved = lookup(window.windowId), saved.isFloating, saved.frame != nil else { continue }
+            restoreFloatingFrame(window)
             restoredAnything = true
         }
         for workspace in Workspace.all {

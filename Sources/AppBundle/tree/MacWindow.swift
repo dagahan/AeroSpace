@@ -40,6 +40,9 @@ final class MacWindow: Window {
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         window.lastKnownWorkspaceName = restored?.workspace
         allWindowsMap[windowId] = window
+        if let restored, restored.isFloating, restored.frame != nil {
+            RestoreState.restoreFloatingFrame(window)
+        }
 
         try await debugWindowsIfRecording(window, .cancellable)
         if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
