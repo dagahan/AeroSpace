@@ -65,9 +65,11 @@ struct MiniWorkspace: Identifiable {
         viewModel.workspaces = capture()
         viewModel.selectedName = focus.workspace.name
         model = viewModel
+        // nonactivatingPanel: must display and take keyboard even when macOS
+        // denies app activation (a freshly relaunched accessory app always is denied).
         let p = MissionControlPanel(
             contentRect: screen.frame,
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false,
         )
@@ -81,6 +83,7 @@ struct MiniWorkspace: Identifiable {
         ))
         NSApp.activate(ignoringOtherApps: true)
         p.makeKeyAndOrderFront(nil)
+        p.orderFrontRegardless()
         panel = p
         suspendHotkeys()
         if motionAllowed {
@@ -93,6 +96,12 @@ struct MiniWorkspace: Identifiable {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
                 guard isShown, let model else { return }
+                // Watchdog: an overlay that failed to display must never strand
+                // the user with suspended hotkeys.
+                if panel?.isVisible != true {
+                    hide(refocus: false)
+                    return
+                }
                 model.workspaces = capture()
             }
         }

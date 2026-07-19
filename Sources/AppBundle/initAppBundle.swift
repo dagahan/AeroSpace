@@ -35,6 +35,8 @@ import Foundation
             }
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }
+        await syncModeToFocusedWorkspace()
+        updateTrayText()
     }
 }
 
