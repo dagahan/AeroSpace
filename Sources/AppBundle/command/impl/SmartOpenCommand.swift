@@ -21,10 +21,18 @@ struct SmartOpenCommand: Command {
         let pid = anchor.app.pid
         let isSingleWindow = config.smartOpenSingleWindowApps.contains(appName)
 
-        // Multi-window: open a fresh window on the current workspace, without activating
-        // the app first (activation would yank us to its existing window's space).
-        if !isSingleWindow, SmartOpen.openNewWindow(pid: pid) {
-            return .succ
+        if !isSingleWindow {
+            // A background app's menu bar isn't reliably pressable, so activate it first
+            // (this also populates the menu for capability detection). We remember the
+            // workspace we started on and refocus it, so the new window binds here rather
+            // than on whatever workspace the app's existing windows live.
+            let original = focus.workspace
+            anchor.macAppUnsafe.nsApp.activate(options: .activateIgnoringOtherApps)
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            if SmartOpen.openNewWindow(pid: pid) {
+                _ = original.focusWorkspace()
+                return .succ
+            }
         }
 
         // Single-window, or the app has no "New Window" action -> switch to the existing one.
