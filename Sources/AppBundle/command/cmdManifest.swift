@@ -70,6 +70,8 @@ extension CmdArgs {
                 command = MoveWorkspaceToMonitorCommand(args: self as! MoveWorkspaceToMonitorCmdArgs)
             case .missionControl:
                 command = MissionControlCommand(args: self as! MissionControlCmdArgs)
+            case .smartOpen:
+                command = SmartOpenCommand(args: self as! SmartOpenCmdArgs)
             case .reloadConfig:
                 command = ReloadConfigCommand(args: self as! ReloadConfigCmdArgs)
             case .resize:

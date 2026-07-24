@@ -48,6 +48,9 @@ struct Config: ConvenienceMutable {
     var enableNormalizationOppositeOrientationForNestedContainers: Bool = true
     var persistentWorkspaces: OrderedSet<String> = []
     var floatingWorkspaces: OrderedSet<String> = []
+    // smart-open: apps that always switch-to-existing instead of opening a new window,
+    // even if they expose a "New Window" menu item. Matched against the app's localized name.
+    var smartOpenSingleWindowApps: [String] = []
     var animationsEnabled: Bool = true
     var closeAnimation: Bool = true
     var workspaceTransition: WorkspaceTransition = .fade

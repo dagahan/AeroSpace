@@ -151,6 +151,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "accordion-padding": Parser(\.accordionPadding, parseInt),
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "floating-workspaces": Parser(\.floatingWorkspaces, parsePersistentWorkspaces),
+    "smart-open-single-window-apps": Parser(\.smartOpenSingleWindowApps, parseArrayOfStrings),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "exec": Parser(\.execConfig, parseExecConfig),
 
