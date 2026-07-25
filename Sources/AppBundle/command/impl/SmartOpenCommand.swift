@@ -50,37 +50,56 @@ struct SmartOpenCommand: Command {
 }
 
 enum SmartOpen {
-    // Presses the app's own File -> New Window menu item (⌘N) via Accessibility.
+    // Presses the app's own New Window menu item (⌘N) via Accessibility.
     // Returns false if no such enabled item exists (i.e. the app can't make a window).
     @MainActor static func openNewWindow(pid: pid_t) -> Bool {
         let app = AXUIElementCreateApplication(pid)
         var menuBarRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &menuBarRef) == .success,
-              let menuBar = menuBarRef, CFGetTypeID(menuBar) == AXUIElementGetTypeID()
+              let menuBarRaw = menuBarRef, CFGetTypeID(menuBarRaw) == AXUIElementGetTypeID()
         else { return false }
-        guard let item = findNewWindowItem(menuBar as! AXUIElement, depth: 0) else { return false }
+        let menuBar = menuBarRaw as! AXUIElement
+        // ⌘N alone doesn't mean "new window": Spotify binds it to New Playlist, VS Code
+        // to New Text File. Pressing those spawns junk, so unless the item names itself
+        // after a window we report "can't" and the caller switches to the existing one.
+        guard let windowWord = windowMenuTitle(menuBar) else { return false }
+        guard let item = findNewWindowItem(menuBar, windowWord: windowWord, depth: 0) else { return false }
         return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
     }
 
-    private static func findNewWindowItem(_ element: AXUIElement, depth: Int) -> AXUIElement? {
-        if depth > 3 { return nil }
-        var childrenRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement]
-        else { return nil }
-        for child in children {
-            if isNewWindowItem(child) { return child }
-            if let found = findNewWindowItem(child, depth: depth + 1) { return found }
+    // The standard Window menu, identified by its Minimize (⌘M) item, spells the
+    // localized word for "window": Window, Окно, Fenster, Fenêtre, 窗口.
+    private static func windowMenuTitle(_ menuBar: AXUIElement) -> String? {
+        for item in children(of: menuBar) {
+            guard let title = string(item, kAXTitleAttribute), !title.isEmpty else { continue }
+            if containsCmdItem(item, char: "m", depth: 0) { return title }
         }
         return nil
     }
 
-    // A menu item bound to ⌘N (Command only, no Shift/Option/Control) that is enabled.
-    // This is the language-independent signature of "New Window" / "New" across native apps.
-    private static func isNewWindowItem(_ item: AXUIElement) -> Bool {
-        var cmdCharRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(item, kAXMenuItemCmdCharAttribute as CFString, &cmdCharRef) == .success,
-              let cmdChar = cmdCharRef as? String, cmdChar.lowercased() == "n"
+    private static func containsCmdItem(_ element: AXUIElement, char: String, depth: Int) -> Bool {
+        if depth > 3 { return false }
+        for child in children(of: element) {
+            if isCmdItem(child, char: char) { return true }
+            if containsCmdItem(child, char: char, depth: depth + 1) { return true }
+        }
+        return false
+    }
+
+    private static func findNewWindowItem(_ element: AXUIElement, windowWord: String, depth: Int) -> AXUIElement? {
+        if depth > 3 { return nil }
+        for child in children(of: element) {
+            if isCmdItem(child, char: "n"),
+               let title = string(child, kAXTitleAttribute),
+               title.localizedCaseInsensitiveContains(windowWord) { return child }
+            if let found = findNewWindowItem(child, windowWord: windowWord, depth: depth + 1) { return found }
+        }
+        return nil
+    }
+
+    // An enabled menu item bound to Command + <char>, with no Shift/Option/Control.
+    private static func isCmdItem(_ item: AXUIElement, char: String) -> Bool {
+        guard let cmdChar = string(item, kAXMenuItemCmdCharAttribute), cmdChar.lowercased() == char
         else { return false }
         var modRef: CFTypeRef?
         let mods = (AXUIElementCopyAttributeValue(item, kAXMenuItemCmdModifiersAttribute as CFString, &modRef) == .success
@@ -90,5 +109,19 @@ enum SmartOpen {
         let enabled = (AXUIElementCopyAttributeValue(item, kAXEnabledAttribute as CFString, &enabledRef) == .success
             ? (enabledRef as? Bool) : nil) ?? true
         return enabled
+    }
+
+    private static func children(of element: AXUIElement) -> [AXUIElement] {
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement]
+        else { return [] }
+        return children
+    }
+
+    private static func string(_ element: AXUIElement, _ attribute: String) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success else { return nil }
+        return ref as? String
     }
 }

@@ -11,8 +11,11 @@ public struct SmartOpenCmdArgs: CmdArgs {
               - running and can make a new window -> open a new window on the current workspace
               - running and single-window         -> focus the existing window (switch workspace)
 
-            "Can make a new window" is detected from the app's own menu bar (a File -> New
-            Window / ⌘N item). Apps listed in 'smart-open-single-window-apps' always just switch.
+            "Can make a new window" is detected from the app's own menu bar: a ⌘N item whose
+            title contains the localized word for "window" (taken from the app's Window menu).
+            Apps whose ⌘N does something else — Spotify's New Playlist, VS Code's New Text
+            File — fall back to switching. Apps listed in 'smart-open-single-window-apps'
+            always just switch.
             """,
         flags: [:],
         posArgs: [newMandatoryPosArgParser(\.appName, parseAppName, placeholder: "<app-name>")],
