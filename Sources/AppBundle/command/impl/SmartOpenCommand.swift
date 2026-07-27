@@ -22,11 +22,15 @@ struct SmartOpenCommand: Command {
         let isSingleWindow = config.smartOpenSingleWindowApps.contains(appName)
 
         if !isSingleWindow {
-            // A background app's menu bar isn't reliably pressable, so activate it first
-            // (this also populates the menu for capability detection). We remember the
-            // workspace we started on and refocus it, so the new window binds here rather
-            // than on whatever workspace the app's existing windows live.
+            // A background app's menu bar isn't pressable, so it has to be activated
+            // first — but activating raises its existing window, and the visible
+            // workspace would follow it there and back. Suppressing the follow keeps
+            // that entirely off screen: the app becomes frontmost, its old window stays
+            // parked on its own workspace, and the new window is born here.
             let original = focus.workspace
+            suppressWorkspaceFollowUntil = .now + 2
+            defer { suppressWorkspaceFollowUntil = .distantPast }
+
             anchor.macAppUnsafe.nsApp.activate(options: .activateIgnoringOtherApps)
             try? await Task.sleep(nanoseconds: 150_000_000)
             if SmartOpen.openNewWindow(pid: pid) {

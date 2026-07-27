@@ -8,6 +8,14 @@ import Foundation
 @MainActor var lastEmptiedFocusedWorkspaceName: String? = nil
 @MainActor var lastEmptiedFocusedWorkspaceDate: Date = .distantPast
 
+/// While this is in the future, a native focus change does not drag the visible
+/// workspace along with it. smart-open has to activate an app to reach its menu
+/// bar, and activating raises that app's existing window wherever it lives —
+/// without this the screen takes a visible round trip to that workspace and back.
+/// A deadline rather than a flag, so a command that dies midway cannot leave
+/// focus tracking switched off forever.
+@MainActor var suppressWorkspaceFollowUntil: Date = .distantPast
+
 @MainActor func updateFocusCache(_ nativeFocused: Window?) {
     if nativeFocused?.parent is MacosPopupWindowsContainer {
         return
@@ -18,7 +26,7 @@ import Foundation
         let stayOnEmptiedWorkspace = focus.workspace.name == lastEmptiedFocusedWorkspaceName
             && lastEmptiedFocusedWorkspaceDate.distance(to: .now) < 1
             && nativeFocused?.nodeWorkspace != focus.workspace
-        if !stayOnEmptiedWorkspace {
+        if !stayOnEmptiedWorkspace && .now >= suppressWorkspaceFollowUntil {
             _ = nativeFocused?.focusWindow()
         }
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
