@@ -182,6 +182,7 @@ extension Workspace {
         var environment = config.execConfig.envVariables
         environment[AEROSPACE_FOCUSED_WORKSPACE] = newWorkspace
         environment[AEROSPACE_PREV_WORKSPACE] = oldWorkspace
+        environment[AEROSPACE_FOCUSED_WORKSPACE_IS_FLOATING] = config.floatingWorkspaces.contains(newWorkspace).description
         switch focus.asLeaf {
             case .emptyWorkspace(let w):
                 environment[AEROSPACE_WORKSPACE] = w.name
