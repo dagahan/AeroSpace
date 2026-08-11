@@ -75,10 +75,31 @@ enum SmartOpen {
 
     @MainActor private static var expected: (placement: SmartOpenPlacement, deadline: Date)? = nil
 
+    private static let minimizeOnCreationLock = NSLock()
+    nonisolated(unsafe) private static var minimizeOnCreation: (appName: String, deadline: Date)? = nil
+
     @MainActor static func expect(_ placement: SmartOpenPlacement) {
         let deadline = Date.now + placementLifetime
         expected = (placement, deadline)
         suppressWorkspaceFollowUntil = deadline
+        setMinimizeOnCreation(placement.minimized ? (placement.appName, deadline) : nil)
+    }
+
+    static func minimizeIfExpected(_ newWindow: AXUIElement) {
+        minimizeOnCreationLock.lock()
+        let awaited = minimizeOnCreation
+        minimizeOnCreationLock.unlock()
+        guard let awaited, .now < awaited.deadline else { return }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(newWindow, &pid) == .success,
+              NSRunningApplication(processIdentifier: pid)?.localizedName == awaited.appName else { return }
+        AXUIElementSetAttributeValue(newWindow, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+    }
+
+    private static func setMinimizeOnCreation(_ awaited: (appName: String, deadline: Date)?) {
+        minimizeOnCreationLock.lock()
+        minimizeOnCreation = awaited
+        minimizeOnCreationLock.unlock()
     }
 
     @MainActor static func expectedPlacement(forAppNamed appName: String?) -> SmartOpenPlacement? {
@@ -88,12 +109,14 @@ enum SmartOpen {
 
     @MainActor static func fulfillPlacement() {
         expected = nil
+        setMinimizeOnCreation(nil)
         suppressWorkspaceFollowUntil = .now + focusSettleAfterPlacement
     }
 
     @MainActor static func abandonPlacement() {
         guard expected != nil else { return }
         expected = nil
+        setMinimizeOnCreation(nil)
         suppressWorkspaceFollowUntil = .distantPast
     }
 
