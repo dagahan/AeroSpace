@@ -50,7 +50,13 @@ struct SmartOpenCommand: Command {
         }
 
         // Single-window, or the app has no "New Window" action -> switch to the existing one.
-        _ = anchor.nodeWorkspace?.focusWorkspace()
+        let anchorWorkspace = anchor.nodeWorkspace ?? anchor.lastKnownWorkspaceName.map { Workspace.get(byName: $0) }
+        _ = anchorWorkspace?.focusWorkspace()
+        if anchor.parent is MacosMinimizedWindowsContainer {
+            anchor.setNativeMinimized(false)
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+        _ = anchor.focusWindow()
         anchor.nativeFocus()
         return .succ
     }
