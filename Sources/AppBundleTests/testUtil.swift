@@ -83,6 +83,13 @@ extension MoveNodeToWorkspaceCmdArgs {
     }
 }
 
+extension SmartOpenCmdArgs {
+    init(appName: String) {
+        self = SmartOpenCmdArgs(rawArgs: [])
+        self.appName = .initialized(appName)
+    }
+}
+
 extension HotkeyBinding {
     init(_ modifiers: NSEvent.ModifierFlags, _ keyCode: Key, _ commands: Shell<any Command>) {
         let descriptionWithKeyNotation = modifiers.isEmpty
