@@ -20,7 +20,9 @@ final class MacWindow: Window {
         if let existing = allWindowsMap[windowId] { return existing }
         let rect = try await macApp.getAxRect(windowId, .cancellable)
         let restored = isStartup ? RestoreState.lookup(windowId) : nil
+        let placement = isStartup ? nil : SmartOpen.expectedPlacement(forAppNamed: macApp.name)
         let targetWorkspace = restored.map { Workspace.get(byName: $0.workspace) }
+            ?? placement.map { Workspace.get(byName: $0.workspaceName) }
             ?? (isStartup
                 ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
                 : focus.workspace)
@@ -40,6 +42,10 @@ final class MacWindow: Window {
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         window.lastKnownWorkspaceName = restored?.workspace
         allWindowsMap[windowId] = window
+        if let placement {
+            SmartOpen.fulfillPlacement()
+            if placement.minimized { window.setNativeMinimized(true) }
+        }
         if let restored, restored.isFloating, restored.frame != nil {
             RestoreState.restoreFloatingFrame(window)
         }

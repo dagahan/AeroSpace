@@ -7,6 +7,13 @@ struct SmartOpenCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         let appName = args.appName.val
+        let workspaceName = args.targetWorkspace?.raw ?? focus.workspace.name
+        if args.openMinimized && !config.floatingWorkspaces.contains(workspaceName) {
+            return .fail(io.err("--minimized needs a workspace listed in 'floating-workspaces'. Minimizing is banned on tiling workspace '\(workspaceName)'"))
+        }
+        let placement: SmartOpenPlacement? = args.targetWorkspace != nil || args.openMinimized
+            ? SmartOpenPlacement(appName: appName, workspaceName: workspaceName, minimized: args.openMinimized)
+            : nil
 
         let trackedWindows = MacWindow.allWindows.filter {
             $0.app.name == appName && !($0.parent is MacosPopupWindowsContainer)
@@ -14,7 +21,8 @@ struct SmartOpenCommand: Command {
 
         // Not running (or running windowless) -> launch it, macOS decides placement.
         guard let anchor = trackedWindows.first else {
-            launch(appName)
+            if let placement { SmartOpen.expect(placement) }
+            launch(appName, inBackground: placement != nil)
             return .succ
         }
 
@@ -29,14 +37,16 @@ struct SmartOpenCommand: Command {
             // parked on its own workspace, and the new window is born here.
             let original = focus.workspace
             suppressWorkspaceFollowUntil = .now + 2
-            defer { suppressWorkspaceFollowUntil = .distantPast }
+            defer { if placement == nil { suppressWorkspaceFollowUntil = .distantPast } }
 
             anchor.macAppUnsafe.nsApp.activate(options: .activateIgnoringOtherApps)
             try? await Task.sleep(nanoseconds: 150_000_000)
+            if let placement { SmartOpen.expect(placement) }
             if SmartOpen.openNewWindow(pid: pid) {
                 _ = original.focusWorkspace()
                 return .succ
             }
+            SmartOpen.abandonPlacement()
         }
 
         // Single-window, or the app has no "New Window" action -> switch to the existing one.
@@ -45,15 +55,48 @@ struct SmartOpenCommand: Command {
         return .succ
     }
 
-    private func launch(_ appName: String) {
+    private func launch(_ appName: String, inBackground: Bool) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        proc.arguments = ["-a", appName]
+        proc.arguments = inBackground ? ["-g", "-a", appName] : ["-a", appName]
         try? proc.run()
     }
 }
 
+struct SmartOpenPlacement: Sendable {
+    let appName: String
+    let workspaceName: String
+    let minimized: Bool
+}
+
 enum SmartOpen {
+    private static let placementLifetime: TimeInterval = 10
+    private static let focusSettleAfterPlacement: TimeInterval = 1
+
+    @MainActor private static var expected: (placement: SmartOpenPlacement, deadline: Date)? = nil
+
+    @MainActor static func expect(_ placement: SmartOpenPlacement) {
+        let deadline = Date.now + placementLifetime
+        expected = (placement, deadline)
+        suppressWorkspaceFollowUntil = deadline
+    }
+
+    @MainActor static func expectedPlacement(forAppNamed appName: String?) -> SmartOpenPlacement? {
+        guard let expected, expected.placement.appName == appName, .now < expected.deadline else { return nil }
+        return expected.placement
+    }
+
+    @MainActor static func fulfillPlacement() {
+        expected = nil
+        suppressWorkspaceFollowUntil = .now + focusSettleAfterPlacement
+    }
+
+    @MainActor static func abandonPlacement() {
+        guard expected != nil else { return }
+        expected = nil
+        suppressWorkspaceFollowUntil = .distantPast
+    }
+
     // Presses the app's own New Window menu item (⌘N) via Accessibility.
     // Returns false if no such enabled item exists (i.e. the app can't make a window).
     @MainActor static func openNewWindow(pid: pid_t) -> Bool {
