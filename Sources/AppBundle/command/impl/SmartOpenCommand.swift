@@ -108,9 +108,13 @@ enum SmartOpen {
     }
 
     @MainActor static func fulfillPlacement() {
+        let fulfilled = expected?.placement
         expected = nil
         setMinimizeOnCreation(nil)
         suppressWorkspaceFollowUntil = .now + focusSettleAfterPlacement
+        if let fulfilled, fulfilled.minimized || fulfilled.workspaceName != focus.workspace.name {
+            focus.windowOrNil?.nativeFocus()
+        }
     }
 
     @MainActor static func abandonPlacement() {
