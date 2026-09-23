@@ -9,6 +9,7 @@ open class Window: TreeNode, Hashable {
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
     var lastKnownWorkspaceName: String? = nil
+    var homeWorkspaceName: String? = nil
 
     @MainActor
     init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {

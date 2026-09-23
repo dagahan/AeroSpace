@@ -49,6 +49,7 @@ struct Config: ConvenienceMutable {
     var persistentWorkspaces: OrderedSet<String> = []
     var floatingWorkspaces: OrderedSet<String> = []
     var perMonitorWorkspaces: OrderedSet<String> = []
+    var unpluggedMonitorGraceSeconds: Int = 3
     // smart-open: apps that always switch-to-existing instead of opening a new window,
     // even if they expose a "New Window" menu item. Matched against the app's localized name.
     var smartOpenSingleWindowApps: [String] = []

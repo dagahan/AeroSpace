@@ -16,6 +16,7 @@ struct SavedWindow: Codable {
     var weight: Double?
     var frame: SavedFrame?
     var minimized: Bool? = nil
+    var home: String? = nil
 }
 
 struct SavedWorkspaceLayout: Codable {
@@ -93,6 +94,7 @@ struct SavedState: Codable {
                 weight: weight,
                 frame: frame,
                 minimized: isMinimized,
+                home: window.homeWorkspaceName,
             )
         }
         loaded = state

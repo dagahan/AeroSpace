@@ -159,13 +159,21 @@ func forgetMonitorsForTests() {
     visibleWorkspaceToScreenPoint = [:]
     monitorKeyToScreenPointAtLastArrangement = [:]
     monitorKeyToLastVisibleWorkspaceName = [:]
+    forgetUnpluggedMonitorsForTests()
 }
 
 @MainActor
-func gcMonitors() {
+func gcMonitors(now: Date = .now) {
     let monitors = monitors
-    if monitorKeyToScreenPoint(monitors) != monitorKeyToScreenPointAtLastArrangement || screenPointToVisibleWorkspace.count != monitors.count {
+    let someMonitorShowsAWorkspaceItMustNot = screenPointToVisibleWorkspace.contains { !isValidAssignment(workspace: $0.value, screen: $0.key) }
+    if monitorKeyToScreenPoint(monitors) != monitorKeyToScreenPointAtLastArrangement ||
+        screenPointToVisibleWorkspace.count != monitors.count ||
+        someMonitorShowsAWorkspaceItMustNot
+    {
         rearrangeWorkspacesOnMonitors()
+    }
+    if perMonitorWorkspacesAreOn {
+        followUnpluggedAndReturningMonitors(monitors, now: now)
     }
 }
 

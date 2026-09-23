@@ -152,6 +152,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "floating-workspaces": Parser(\.floatingWorkspaces, parsePersistentWorkspaces),
     "per-monitor-workspaces": Parser(\.perMonitorWorkspaces, parsePersistentWorkspaces),
+    "unplugged-monitor-grace-seconds": Parser(\.unpluggedMonitorGraceSeconds, parseInt),
     "smart-open-single-window-apps": Parser(\.smartOpenSingleWindowApps, parseArrayOfStrings),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "exec": Parser(\.execConfig, parseExecConfig),

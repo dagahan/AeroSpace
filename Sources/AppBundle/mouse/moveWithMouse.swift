@@ -42,6 +42,7 @@ private func moveFloatingWindow(_ window: Window) async throws {
     guard let targetWorkspace = try await window.getCenter(.cancellable)?.monitorApproximation.activeWorkspace else { return }
     guard let parent = window.parent else { return }
     if targetWorkspace != parent {
+        if targetWorkspace != window.nodeWorkspace { window.homeWorkspaceName = nil }
         window.bindAsFloatingWindow(to: targetWorkspace)
     }
 }
@@ -56,6 +57,7 @@ private func moveTilingWindow(_ window: Window) {
         .findWindowRecursively(in: targetWorkspace.rootTilingContainer, virtual: false, fullscreenCoversAll: false)?
         .takeIf { $0 != window }
     if targetWorkspace != window.nodeWorkspace { // Move window to a different monitor
+        window.homeWorkspaceName = nil
         let index: Int = if let swapTarget, let parent = swapTarget.parent as? TilingContainer, let targetRect = swapTarget.lastAppliedLayoutPhysicalRect {
             mouseLocation.getProjection(parent.orientation) >= targetRect.center.getProjection(parent.orientation)
                 ? swapTarget.ownIndex.orDie() + 1

@@ -47,5 +47,6 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
         ? targetWorkspace.floatingWindowsContainer
         : targetWorkspace.rootTilingContainer
     window.bind(to: targetContainer, adaptiveWeight: WEIGHT_AUTO, index: index)
+    window.homeWorkspaceName = nil
     return .from(bool: focusFollowsWindow ? window.focusWindow() : true)
 }
