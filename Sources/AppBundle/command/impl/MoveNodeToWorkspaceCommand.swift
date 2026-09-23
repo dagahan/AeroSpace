@@ -22,7 +22,7 @@ struct MoveNodeToWorkspaceCommand: Command {
                 guard let ws = ws.getOrNil(appendErrorTo: &io.stderr) else { return .fail }
                 targetWorkspace = ws
             case .direct(let name):
-                let monitor = window.nodeMonitor ?? target.workspace.workspaceMonitor
+                let monitor = pinnedMonitor ?? window.nodeMonitor ?? target.workspace.workspaceMonitor
                 let workspaceName = resolveWorkspaceName(name.raw, on: monitor)
                 if let problem = whyWorkspaceCantBeUsed(workspaceName) { return .fail(io.err(problem)) }
                 targetWorkspace = Workspace.get(byName: workspaceName)

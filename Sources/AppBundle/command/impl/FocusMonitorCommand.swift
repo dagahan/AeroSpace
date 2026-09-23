@@ -7,9 +7,11 @@ struct FocusMonitorCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> BinaryExitCode {
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
-        return switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
-            case .success(let targetMonitor): .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
-            case .failure(let msg): .fail(io.err(msg))
+        switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
+            case .success(let targetMonitor):
+                if args.target.val.isLetter { noteLetterTap(onMonitor: targetMonitor.key) }
+                return .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
+            case .failure(let msg): return .fail(io.err(msg))
         }
     }
 }

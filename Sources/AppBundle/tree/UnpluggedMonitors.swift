@@ -32,6 +32,7 @@ func followUnpluggedAndReturningMonitors(_ monitors: [Monitor], now: Date) {
         }
     }
     realMonitorRectsSeenLastTime = realMonitorRects
+    if let pinned = pinnedMonitorKey, realMonitorRects[pinned] == nil { pinnedMonitorKey = nil }
     moveWindowsOffMonitorsGoneForGood(realMonitors, now: now)
 }
 

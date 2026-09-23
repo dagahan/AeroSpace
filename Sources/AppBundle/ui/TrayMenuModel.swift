@@ -26,14 +26,16 @@ enum AxPermissionStatus: Equatable {
 @MainActor func updateTrayText() {
     let sortedMonitors = sortedMonitors
     let focus = focus
-    TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first.map { "(\($0.uppercased())) " } ?? "") +
-        sortedMonitors
+    let shownMode = activeMode?.takeIf { $0 != mainModeId && !(perMonitorWorkspacesAreOn && $0 == floatingModeId) }
+    let monitorLabels = perMonitorWorkspacesAreOn ? perMonitorTrayLabels(sortedMonitors, focus) : nil
+    let workspacesText = monitorLabels?.text ?? sortedMonitors
         .map {
             let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
             let activeWorkspaceName = hasFullscreenWindows ? "[\($0.activeWorkspace.name)]" : $0.activeWorkspace.name
             return ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + activeWorkspaceName
         }
         .joined(separator: " │ ")
+    TrayMenuModel.shared.trayText = (shownMode?.first.map { "(\($0.uppercased())) " } ?? "") + workspacesText
     TrayMenuModel.shared.workspaces = Workspace.all.map {
         let apps = $0.allLeafWindowsRecursive.map { $0.app.name?.takeIf { !$0.isEmpty } }.filterNotNil().toSet()
         let dash = " - "
@@ -52,7 +54,7 @@ enum AxPermissionStatus: Equatable {
             hasFullscreenWindows: hasFullscreenWindows,
         )
     }
-    var items = sortedMonitors.map {
+    var items = monitorLabels?.items ?? sortedMonitors.map {
         let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
         return TrayItem(
             type: .workspace,
@@ -61,13 +63,30 @@ enum AxPermissionStatus: Equatable {
             hasFullscreenWindows: hasFullscreenWindows,
         )
     }
-    let mode = activeMode?.takeIf { $0 != mainModeId }?.first.map {
+    let mode = shownMode?.first.map {
         TrayItem(type: .mode, name: $0.uppercased(), isActive: true, hasFullscreenWindows: false)
     }
     if let mode {
         items.insert(mode, at: 0)
     }
     TrayMenuModel.shared.trayItems = items
+}
+
+@MainActor private func perMonitorTrayLabels(_ monitors: [Monitor], _ focus: LiveFocus) -> (text: String, items: [TrayItem]) {
+    let lettered = monitorsInLetterOrder(monitors)
+    let items = lettered.map { monitor, letter in
+        let workspace = monitor.activeWorkspace
+        return TrayItem(
+            type: .workspace,
+            name: String(letter).uppercased() + workspace.localName + (monitor.key == pinnedMonitorKey ? "📌" : ""),
+            isActive: workspace == focus.workspace,
+            hasFullscreenWindows: workspace.allLeafWindowsRecursive.contains { $0.isFullscreen },
+        )
+    }
+    let text = items
+        .map { ($0.isActive && items.count > 1 ? "*" : "") + ($0.hasFullscreenWindows ? "[\($0.name)]" : $0.name) }
+        .joined(separator: " ")
+    return (text, items)
 }
 
 struct WorkspaceViewModel: Hashable {
