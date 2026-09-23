@@ -18,7 +18,7 @@ struct CloseCommand: Command {
         {
             ProxyAnimator.popOut(image: image, frame: rect)
         }
-        let isFinder = window.macAppUnsafe.nsApp.bundleIdentifier == "com.apple.finder"
+        let isFinder = window.app.rawAppBundleId == "com.apple.finder"
         let trackedAppWindows = MacWindow.allWindows
             .filter { $0.app.pid == window.app.pid && !($0.parent is MacosPopupWindowsContainer) }
             .count
