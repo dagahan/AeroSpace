@@ -39,10 +39,10 @@ final class LazyMonitor: Monitor {
     private var _rect: Rect?
     private var _visibleRect: Rect?
 
-    init(monitorAppKitNsScreenScreensId: Int, isMain: Bool, _ screen: NSScreen) {
+    init(monitorAppKitNsScreenScreensId: Int, key: String, isMain: Bool, _ screen: NSScreen) {
         self.monitorAppKitNsScreenScreensId = monitorAppKitNsScreenScreensId
         self.name = screen.localizedName
-        self.key = screen.monitorKey
+        self.key = key
         self.width = screen.frame.width // Don't call rect because it would cause recursion during mainMonitor init
         self.height = screen.frame.height // Don't call rect because it would cause recursion during mainMonitor init
         self.screen = screen
@@ -63,11 +63,11 @@ final class LazyMonitor: Monitor {
 // 2. It's inaccurate because NSScreen.main doesn't work correctly from NSWorkspace.didActivateApplicationNotification &
 //    kAXFocusedWindowChangedNotification callbacks.
 extension NSScreen {
-    fileprivate func toMonitor(monitorAppKitNsScreenScreensId: Int) -> Monitor {
+    fileprivate func toMonitor(monitorAppKitNsScreenScreensId: Int, key: String) -> Monitor {
         MonitorImpl(
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
             name: localizedName,
-            key: monitorKey,
+            key: key,
             rect: rect,
             visibleRect: visibleRect,
             isMain: isMainScreen,
@@ -132,13 +132,26 @@ var mainMonitor: Monitor {
     // return screens.first or testMonitor to avoid crash
     let screen = screens.withIndex.singleOrNil(where: \.value.isMainScreen) ?? screens.first.map { (0, $0) }
     guard let screen else { return testMonitor }
-    return LazyMonitor(monitorAppKitNsScreenScreensId: screen.index + 1, isMain: true, screen.value)
+    let key = uniqueMonitorKeys(screens)[screen.index]
+    return LazyMonitor(monitorAppKitNsScreenScreensId: screen.index + 1, key: key, isMain: true, screen.value)
 }
 
 var monitors: [Monitor] {
-    isUnitTest
-        ? unsafe unitTestMonitors
-        : NSScreen.screens.enumerated().map { $0.element.toMonitor(monitorAppKitNsScreenScreensId: $0.offset + 1) }
+    if isUnitTest { return unsafe unitTestMonitors }
+    let screens = NSScreen.screens
+    return zip(screens.enumerated(), uniqueMonitorKeys(screens)).map { screen, key in
+        screen.element.toMonitor(monitorAppKitNsScreenScreensId: screen.offset + 1, key: key)
+    }
+}
+
+private func uniqueMonitorKeys(_ screens: [NSScreen]) -> [String] {
+    var timesSeen: [String: Int] = [:]
+    return screens.map { screen in
+        let key = screen.monitorKey
+        let count = timesSeen[key, default: 0] + 1
+        timesSeen[key] = count
+        return count == 1 ? key : "\(key)#\(count)"
+    }
 }
 
 var sortedMonitors: [Monitor] {

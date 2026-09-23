@@ -4,6 +4,7 @@ import Common
 @MainActor private var workspaceNameToWorkspace: [String: Workspace] = [:]
 
 @MainActor private var screenPointToPrevVisibleWorkspace: [CGPoint: String] = [:]
+@MainActor private var monitorKeyToScreenPointAtLastArrangement: [String: CGPoint] = [:]
 @MainActor private var screenPointToVisibleWorkspace: [CGPoint: Workspace] = [:]
 @MainActor private var visibleWorkspaceToScreenPoint: [Workspace: CGPoint] = [:]
 
@@ -137,13 +138,19 @@ func forgetMonitorsForTests() {
     screenPointToPrevVisibleWorkspace = [:]
     screenPointToVisibleWorkspace = [:]
     visibleWorkspaceToScreenPoint = [:]
+    monitorKeyToScreenPointAtLastArrangement = [:]
 }
 
 @MainActor
 func gcMonitors() {
-    if screenPointToVisibleWorkspace.count != monitors.count {
+    let monitors = monitors
+    if monitorKeyToScreenPoint(monitors) != monitorKeyToScreenPointAtLastArrangement || screenPointToVisibleWorkspace.count != monitors.count {
         rearrangeWorkspacesOnMonitors()
     }
+}
+
+private func monitorKeyToScreenPoint(_ monitors: [Monitor]) -> [String: CGPoint] {
+    Dictionary(monitors.map { ($0.key, $0.rect.topLeftCorner) }, uniquingKeysWith: { first, _ in first })
 }
 
 extension CGPoint {
@@ -171,10 +178,19 @@ extension CGPoint {
 
 @MainActor
 private func rearrangeWorkspacesOnMonitors() {
-    let newScreens = monitors.map(\.rect.topLeftCorner)
+    let newMonitors = monitors
+    let newScreens = newMonitors.map(\.rect.topLeftCorner)
     var newScreenToOldScreenMapping: [CGPoint: CGPoint] = [:]
-    for (oldScreen, _) in screenPointToVisibleWorkspace {
-        guard let newScreen = newScreens.minBy({ ($0 - oldScreen).vectorLength }) else { continue }
+    for monitor in newMonitors {
+        if let oldScreen = monitorKeyToScreenPointAtLastArrangement[monitor.key], screenPointToVisibleWorkspace[oldScreen] != nil {
+            newScreenToOldScreenMapping[monitor.rect.topLeftCorner] = oldScreen
+        }
+    }
+    let oldScreensOfMonitorsStillPresent = newMonitors.compactMap { monitorKeyToScreenPointAtLastArrangement[$0.key] }.toSet()
+    let screensMatchedByKey = newScreenToOldScreenMapping.keys.toSet()
+    let newScreensToMatchByDistance = newScreens.filter { !screensMatchedByKey.contains($0) }
+    for (oldScreen, _) in screenPointToVisibleWorkspace where !oldScreensOfMonitorsStillPresent.contains(oldScreen) {
+        guard let newScreen = newScreensToMatchByDistance.minBy({ ($0 - oldScreen).vectorLength }) else { continue }
         if let prevOldScreen = newScreenToOldScreenMapping[newScreen] {
             if (prevOldScreen - newScreen).vectorLength <= (oldScreen - newScreen).vectorLength {
                 // newScreen has already been assigned to a closer oldScreen.
@@ -198,6 +214,7 @@ private func rearrangeWorkspacesOnMonitors() {
         check(newScreen.setActiveWorkspace(stubWorkspace),
               "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(newScreen)")
     }
+    monitorKeyToScreenPointAtLastArrangement = monitorKeyToScreenPoint(newMonitors)
 }
 
 @MainActor

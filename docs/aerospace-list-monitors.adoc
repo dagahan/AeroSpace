@@ -61,6 +61,7 @@ The following variables can be used inside `<output-format>`:
 %{monitor-appkit-nsscreen-screens-id}:: 1-based index of the belonging monitor in `NSScreen.screens` array. Useful for integration with other tools that might be using `NSScreen.screens` ordering (like sketchybar).
 %{monitor-name}:: String. Name of the belonging monitor
 %{monitor-is-main}:: Boolean. True if the monitor is main.
+%{monitor-key}:: String. `builtin` for the laptop panel, the serial number for an external monitor, `stand-in` for the invisible display macOS adds when none is left.
 
 %{right-padding}:: A special variable which expands with a minimum number of spaces required to form a right padding in the appropriate column
 %{newline}:: Unicode U+000A newline symbol `\n`

@@ -176,6 +176,7 @@ extension FormatVar {
                     case .monitorAppKitNsScreenScreensId: .success(.int(m.monitorAppKitNsScreenScreensId))
                     case .monitorName: .success(.string(m.name))
                     case .monitorIsMain: .success(.bool(m.isMain))
+                    case .monitorKey: .success(.string(m.key))
                 }
             case (.app(let a), .app(let f)):
                 return switch f {

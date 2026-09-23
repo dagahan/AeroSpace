@@ -69,6 +69,7 @@ include::./util/conditional-interpolation-variables-header.adoc[]
 %{monitor-appkit-nsscreen-screens-id}:: 1-based index of the belonging monitor in `NSScreen.screens` array. Useful for integration with other tools that might be using `NSScreen.screens` ordering (like sketchybar).
 %{monitor-name}:: String. Name of the belonging monitor
 %{monitor-is-main}:: Boolean. `true` if the monitor is main.
+%{monitor-key}:: String. `builtin` for the laptop panel, the serial number for an external monitor, `stand-in` for the invisible display macOS adds when none is left.
  
 // =========================================================== Exit codes
 include::./util/conditional-exit-code-header.adoc[]
