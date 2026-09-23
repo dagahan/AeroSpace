@@ -3,7 +3,7 @@ import Common
 extension CmdArgs {
     @MainActor
     var workspace: Workspace? {
-        if let workspaceName { Workspace.get(byName: workspaceName.raw) } else { nil }
+        if let workspaceName { Workspace.get(byName: resolveWorkspaceName(workspaceName.raw, on: focus.workspace.workspaceMonitor)) } else { nil }
     }
 
     @MainActor

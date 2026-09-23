@@ -62,7 +62,7 @@ let floatingModeId = "floating"
     // Control overlay is open — otherwise recover instead of staying dead.
     if MissionControl.isShown { return }
     guard activeMode == nil || activeMode == mainModeId || activeMode == floatingModeId else { return }
-    let target = config.floatingWorkspaces.contains(focus.workspace.name) ? floatingModeId : mainModeId
+    let target = focus.workspace.isFloatingWorkspace ? floatingModeId : mainModeId
     if activeMode != target, config.modes[target] != nil {
         await activateMode_nonCancellable(target)
     }

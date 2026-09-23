@@ -51,7 +51,7 @@ private let tapCallback: CGEventTapCallBack = { _, type, event, _ in
     static func refresh() async {
         var rects: [CGRect] = []
         let workspace = focus.workspace
-        if !config.floatingWorkspaces.contains(workspace.name) {
+        if !workspace.isFloatingWorkspace {
             for window in workspace.allLeafWindowsRecursive {
                 guard let macWindow = window as? MacWindow else { continue }
                 guard let rect = try? await macWindow.macApp.getMinimizeButtonRect(window.windowId, .nonCancellable) else { continue }

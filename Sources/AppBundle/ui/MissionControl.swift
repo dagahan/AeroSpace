@@ -144,7 +144,7 @@ struct MiniWorkspace: Identifiable {
 
     private static func resumeHotkeys() {
         Task {
-            let target = config.floatingWorkspaces.contains(focus.workspace.name) ? floatingModeId : mainModeId
+            let target = focus.workspace.isFloatingWorkspace ? floatingModeId : mainModeId
             await activateMode_nonCancellable(config.modes[target] != nil ? target : mainModeId)
         }
     }

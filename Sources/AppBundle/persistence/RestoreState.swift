@@ -129,7 +129,7 @@ struct SavedState: Codable {
             restoredAnything = true
         }
         for workspace in Workspace.all {
-            guard let savedLayout = state.workspaces[workspace.name] else { continue }
+            guard let savedLayout = state.workspaces[workspace.name] ?? state.workspaces[workspace.localName] else { continue }
             let root = workspace.rootTilingContainer
             let restoredWindows = root.children
                 .compactMap { $0 as? Window }

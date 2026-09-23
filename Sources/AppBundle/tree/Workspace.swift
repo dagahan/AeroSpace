@@ -5,6 +5,7 @@ import Common
 
 @MainActor private var screenPointToPrevVisibleWorkspace: [CGPoint: String] = [:]
 @MainActor private var monitorKeyToScreenPointAtLastArrangement: [String: CGPoint] = [:]
+@MainActor private var monitorKeyToLastVisibleWorkspaceName: [String: String] = [:]
 @MainActor private var screenPointToVisibleWorkspace: [CGPoint: Workspace] = [:]
 @MainActor private var visibleWorkspaceToScreenPoint: [Workspace: CGPoint] = [:]
 
@@ -15,6 +16,9 @@ import Common
 
 @MainActor
 private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
+    if perMonitorWorkspacesAreOn, let monitor = monitors.first(where: { $0.rect.topLeftCorner == point }) {
+        return getStubWorkspace(ownedBy: monitor)
+    }
     if let prev = screenPointToPrevVisibleWorkspace[point].map({ Workspace.get(byName: $0) }),
        !prev.isVisible && prev.workspaceMonitor.rect.topLeftCorner == point && prev.forceAssignedMonitor == nil
     {
@@ -29,6 +33,16 @@ private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
         .map { Workspace.get(byName: String($0)) }
         .first { $0.isEffectivelyEmpty && !$0.isVisible && !config.persistentWorkspaces.contains($0.name) && $0.forceAssignedMonitor == nil }
         .orDie("Can't create empty workspace")
+}
+
+@MainActor
+private func getStubWorkspace(ownedBy monitor: Monitor) -> Workspace {
+    if let lastVisible = monitorKeyToLastVisibleWorkspaceName[monitor.key].map({ Workspace.get(byName: $0) }),
+       !lastVisible.isVisible && lastVisible.ownerMonitorKey == monitor.key
+    {
+        return lastVisible
+    }
+    return monitor.ownWorkspaces.first { !$0.isVisible }.orDie("Every workspace of monitor \(monitor.key) is visible")
 }
 
 final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
@@ -86,8 +100,13 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         for name in config.persistentWorkspaces {
             _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
         }
+        let monitorKeysOwningWorkspaces = monitorKeysOwningWorkspaces()
+        for monitor in monitors where monitorKeysOwningWorkspaces.contains(monitor.key) {
+            _ = monitor.ownWorkspaces
+        }
         workspaceNameToWorkspace = workspaceNameToWorkspace.filter { (_, workspace: Workspace) in
             config.persistentWorkspaces.contains(workspace.name) ||
+                workspace.ownerMonitorKey.map(monitorKeysOwningWorkspaces.contains) == true ||
                 !workspace.isEffectivelyEmpty ||
                 workspace.isVisible ||
                 workspace.name == focus.workspace.name
@@ -139,6 +158,7 @@ func forgetMonitorsForTests() {
     screenPointToVisibleWorkspace = [:]
     visibleWorkspaceToScreenPoint = [:]
     monitorKeyToScreenPointAtLastArrangement = [:]
+    monitorKeyToLastVisibleWorkspaceName = [:]
 }
 
 @MainActor
@@ -200,6 +220,9 @@ private func rearrangeWorkspacesOnMonitors() {
         newScreenToOldScreenMapping[newScreen] = oldScreen
     }
 
+    for (key, oldScreen) in monitorKeyToScreenPointAtLastArrangement {
+        if let visible = screenPointToVisibleWorkspace[oldScreen] { monitorKeyToLastVisibleWorkspaceName[key] = visible.name }
+    }
     let oldScreenPointToVisibleWorkspace = screenPointToVisibleWorkspace
     screenPointToVisibleWorkspace = [:]
     visibleWorkspaceToScreenPoint = [:]
@@ -219,7 +242,10 @@ private func rearrangeWorkspacesOnMonitors() {
 
 @MainActor
 private func isValidAssignment(workspace: Workspace, screen: CGPoint) -> Bool {
-    switch workspace.forceAssignedMonitor {
+    if perMonitorWorkspacesAreOn {
+        return workspace.ownerMonitorKey != nil && monitors.first { $0.rect.topLeftCorner == screen }?.key == workspace.ownerMonitorKey
+    }
+    return switch workspace.forceAssignedMonitor {
         case let forceAssigned? where forceAssigned.rect.topLeftCorner != screen: false
         default: true
     }

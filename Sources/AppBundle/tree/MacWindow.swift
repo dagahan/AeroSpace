@@ -21,7 +21,7 @@ final class MacWindow: Window {
         let rect = try await macApp.getAxRect(windowId, .cancellable)
         let restored = isStartup ? RestoreState.lookup(windowId) : nil
         let placement = isStartup ? nil : SmartOpen.expectedPlacement(forAppNamed: macApp.name)
-        let targetWorkspace = restored.map { Workspace.get(byName: $0.workspace) }
+        let targetWorkspace = restored.map { Workspace.get(byName: resolveWorkspaceName($0.workspace, on: rect?.center.monitorApproximation ?? mainMonitor)) }
             ?? placement.map { Workspace.get(byName: $0.workspaceName) }
             ?? (isStartup
                 ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
@@ -236,7 +236,7 @@ private func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: M
     return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
         case .popup: BindingData(parent: macosPopupWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
         case .dialog: BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .window: config.floatingWorkspaces.contains(workspace.name)
+        case .window: workspace.isFloatingWorkspace
             ? BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
             : unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
     }

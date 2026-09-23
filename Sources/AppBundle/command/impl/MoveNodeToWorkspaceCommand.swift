@@ -22,7 +22,10 @@ struct MoveNodeToWorkspaceCommand: Command {
                 guard let ws = ws.getOrNil(appendErrorTo: &io.stderr) else { return .fail }
                 targetWorkspace = ws
             case .direct(let name):
-                targetWorkspace = Workspace.get(byName: name.raw)
+                let monitor = window.nodeMonitor ?? target.workspace.workspaceMonitor
+                let workspaceName = resolveWorkspaceName(name.raw, on: monitor)
+                if let problem = whyWorkspaceCantBeUsed(workspaceName) { return .fail(io.err(problem)) }
+                targetWorkspace = Workspace.get(byName: workspaceName)
         }
         return moveWindowToWorkspace(window, targetWorkspace, io, focusFollowsWindow: args.focusFollowsWindow, failIfNoop: args.failIfNoop)
     }
@@ -37,8 +40,8 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
                 .succ(io.err("Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code"))
         }
     }
-    let sourceWorkspaceIsFloating = window.nodeWorkspace.map { config.floatingWorkspaces.contains($0.name) } ?? false
-    let targetWorkspaceIsFloating = config.floatingWorkspaces.contains(targetWorkspace.name)
+    let sourceWorkspaceIsFloating = window.nodeWorkspace?.isFloatingWorkspace ?? false
+    let targetWorkspaceIsFloating = targetWorkspace.isFloatingWorkspace
     let shouldFloat = targetWorkspaceIsFloating || (window.isFloating && !sourceWorkspaceIsFloating)
     let targetContainer: NonLeafTreeNodeObject = shouldFloat
         ? targetWorkspace.floatingWindowsContainer

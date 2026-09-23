@@ -22,7 +22,8 @@ struct WorkspaceCommand: Command {
                 guard let workspace = workspace.getOrNil(appendErrorTo: &io.stderr) else { return .fail }
                 workspaceName = workspace.name
             case .direct(let name):
-                workspaceName = name.raw
+                workspaceName = resolveWorkspaceName(name.raw, on: focusedWs.workspaceMonitor)
+                if let problem = whyWorkspaceCantBeUsed(workspaceName) { return .fail(io.err(problem)) }
                 if args.autoBackAndForth && focusedWs.name == workspaceName {
                     return WorkspaceBackAndForthCommand(args: WorkspaceBackAndForthCmdArgs(rawArgs: [])).run(env, io)
                 }

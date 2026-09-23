@@ -7,7 +7,7 @@ import Foundation
     private static let bordersrc = NSString(string: "~/.config/borders/bordersrc").expandingTildeInPath
 
     static func sync() {
-        let hidden = config.floatingWorkspaces.contains(focus.workspace.name)
+        let hidden = focus.workspace.isFloatingWorkspace
         if hidden == lastHidden { return }
         lastHidden = hidden
         let proc = Process()

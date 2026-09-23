@@ -7,8 +7,8 @@ struct SmartOpenCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         let appName = args.appName.val
-        let workspaceName = args.targetWorkspace?.raw ?? focus.workspace.name
-        if args.openMinimized && !config.floatingWorkspaces.contains(workspaceName) {
+        let workspaceName = args.targetWorkspace.map { resolveWorkspaceName($0.raw, on: focus.workspace.workspaceMonitor) } ?? focus.workspace.name
+        if args.openMinimized && !isFloatingWorkspaceName(workspaceName) {
             return .fail(io.err("--minimized needs a workspace listed in 'floating-workspaces'. Minimizing is banned on tiling workspace '\(workspaceName)'"))
         }
         let placement: SmartOpenPlacement? = args.targetWorkspace != nil || args.openMinimized

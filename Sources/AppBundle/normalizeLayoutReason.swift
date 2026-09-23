@@ -37,7 +37,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                     case isMacosMinimized:
                         // Minimize is banned on tiling workspaces: bounce the window straight back
                         // without touching the tree, so nothing swaps or rearranges.
-                        if let nodeWorkspace = window.nodeWorkspace, !config.floatingWorkspaces.contains(nodeWorkspace.name) {
+                        if let nodeWorkspace = window.nodeWorkspace, !nodeWorkspace.isFloatingWorkspace {
                             window.asMacWindow().setNativeMinimized(false)
                             break
                         }
