@@ -133,6 +133,13 @@ extension Monitor {
 }
 
 @MainActor
+func forgetMonitorsForTests() {
+    screenPointToPrevVisibleWorkspace = [:]
+    screenPointToVisibleWorkspace = [:]
+    visibleWorkspaceToScreenPoint = [:]
+}
+
+@MainActor
 func gcMonitors() {
     if screenPointToVisibleWorkspace.count != monitors.count {
         rearrangeWorkspacesOnMonitors()

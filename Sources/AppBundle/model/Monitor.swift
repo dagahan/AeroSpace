@@ -1,9 +1,10 @@
 import AppKit
 import Common
 
-private struct MonitorImpl {
+struct MonitorImpl {
     let monitorAppKitNsScreenScreensId: Int
     let name: String
+    let key: String
     let rect: Rect
     let visibleRect: Rect
     let isMain: Bool
@@ -19,6 +20,7 @@ protocol Monitor: AeroAny {
     /// The index in NSScreen.screens array. 1-based index
     var monitorAppKitNsScreenScreensId: Int { get }
     var name: String { get }
+    var key: String { get }
     var rect: Rect { get }
     var visibleRect: Rect { get }
     var width: CGFloat { get }
@@ -30,6 +32,7 @@ final class LazyMonitor: Monitor {
     private let screen: NSScreen
     let monitorAppKitNsScreenScreensId: Int
     let name: String
+    let key: String
     let width: CGFloat
     let height: CGFloat
     let isMain: Bool
@@ -39,6 +42,7 @@ final class LazyMonitor: Monitor {
     init(monitorAppKitNsScreenScreensId: Int, isMain: Bool, _ screen: NSScreen) {
         self.monitorAppKitNsScreenScreensId = monitorAppKitNsScreenScreensId
         self.name = screen.localizedName
+        self.key = screen.monitorKey
         self.width = screen.frame.width // Don't call rect because it would cause recursion during mainMonitor init
         self.height = screen.frame.height // Don't call rect because it would cause recursion during mainMonitor init
         self.screen = screen
@@ -63,10 +67,16 @@ extension NSScreen {
         MonitorImpl(
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
             name: localizedName,
+            key: monitorKey,
             rect: rect,
             visibleRect: visibleRect,
             isMain: isMainScreen,
         )
+    }
+
+    fileprivate var monitorKey: String {
+        let displayId = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
+        return monitorKeyOf(displayId: displayId)
     }
 
     fileprivate var isMainScreen: Bool {
@@ -85,17 +95,38 @@ extension NSScreen {
     fileprivate var visibleRect: Rect { visibleFrame.monitorFrameNormalized() }
 }
 
+let builtinMonitorKey = "builtin"
+let standInMonitorKey = "stand-in"
+private let standInVendorNumber: UInt32 = 0x756E_6B6E
+private let standInModelNumber: UInt32 = 0x7669_7274
+
+func monitorKeyOf(displayId: CGDirectDisplayID) -> String {
+    if CGDisplayIsBuiltin(displayId) != 0 { return builtinMonitorKey }
+    let serial = CGDisplaySerialNumber(displayId)
+    if serial != 0 { return String(serial) }
+    let vendor = CGDisplayVendorNumber(displayId)
+    let model = CGDisplayModelNumber(displayId)
+    if vendor == standInVendorNumber && model == standInModelNumber { return standInMonitorKey }
+    return "\(vendor).\(model)"
+}
+
+extension Monitor {
+    var isStandIn: Bool { key == standInMonitorKey }
+}
+
 private let testMonitorRect = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
-private let testMonitor = MonitorImpl(
+let testMonitor = MonitorImpl(
     monitorAppKitNsScreenScreensId: 1,
     name: "Test Monitor",
+    key: "test",
     rect: testMonitorRect,
     visibleRect: testMonitorRect,
     isMain: true,
 )
+nonisolated(unsafe) var unitTestMonitors: [Monitor] = [testMonitor]
 
 var mainMonitor: Monitor {
-    if isUnitTest { return testMonitor }
+    if isUnitTest { return unsafe unitTestMonitors.first(where: \.isMain) ?? unitTestMonitors[0] }
     let screens = NSScreen.screens
     // Fallback: If main screen can't be found (e.g., during display reconfiguration),
     // return screens.first or testMonitor to avoid crash
@@ -106,7 +137,7 @@ var mainMonitor: Monitor {
 
 var monitors: [Monitor] {
     isUnitTest
-        ? [testMonitor]
+        ? unsafe unitTestMonitors
         : NSScreen.screens.enumerated().map { $0.element.toMonitor(monitorAppKitNsScreenScreensId: $0.offset + 1) }
 }
 

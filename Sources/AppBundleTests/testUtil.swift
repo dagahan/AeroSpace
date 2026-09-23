@@ -24,6 +24,8 @@ func setUpWorkspacesForTests() {
     // Don't create any bindings and workspaces for tests
     config.modes = [mainModeId: Mode(bindings: [:])]
     config.persistentWorkspaces = []
+    unitTestMonitors = [testMonitor]
+    forgetMonitorsForTests()
 
     for workspace in Workspace.all {
         for child in workspace.children {
@@ -38,6 +40,17 @@ func setUpWorkspacesForTests() {
 
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
+}
+
+func testMonitor(_ key: String, x: CGFloat, y: CGFloat, width: CGFloat = 2560, height: CGFloat = 1440) -> MonitorImpl {
+    let rect = Rect(topLeftX: x, topLeftY: y, width: width, height: height)
+    return MonitorImpl(monitorAppKitNsScreenScreensId: 1, name: key, key: key, rect: rect, visibleRect: rect, isMain: x == 0 && y == 0)
+}
+
+@MainActor
+func plugTestMonitors(_ monitors: MonitorImpl...) {
+    unitTestMonitors = monitors
+    gcMonitors()
 }
 
 extension ParsedCmd {
