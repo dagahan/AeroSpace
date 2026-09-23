@@ -205,6 +205,7 @@ public enum FormatVar: RawRepresentable, Equatable, CaseIterable, Sendable {
         case monitorName = "monitor-name"
         case monitorIsMain = "monitor-is-main"
         case monitorKey = "monitor-key"
+        case monitorLetter = "monitor-letter"
     }
 }
 

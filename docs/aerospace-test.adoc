@@ -70,6 +70,7 @@ include::./util/conditional-interpolation-variables-header.adoc[]
 %{monitor-name}:: String. Name of the belonging monitor
 %{monitor-is-main}:: Boolean. `true` if the monitor is main.
 %{monitor-key}:: String. `builtin` for the laptop panel, the serial number for an external monitor, `stand-in` for the invisible display macOS adds when none is left.
+%{monitor-letter}:: String. The monitor's letter by position: `D` for a lone monitor, `D F` left to right for two, `S D F` for three, `S D F G` for four; a lower row gets `C`, `C V`, `X C V`, `X C V B`.
  
 // =========================================================== Exit codes
 include::./util/conditional-exit-code-header.adoc[]

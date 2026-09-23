@@ -177,6 +177,7 @@ extension FormatVar {
                     case .monitorName: .success(.string(m.name))
                     case .monitorIsMain: .success(.bool(m.isMain))
                     case .monitorKey: .success(.string(m.key))
+                    case .monitorLetter: .success(.string(m.letter.map { String($0).uppercased() } ?? "NULL-MONITOR-LETTER"))
                 }
             case (.app(let a), .app(let f)):
                 return switch f {
