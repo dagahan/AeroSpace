@@ -12,6 +12,7 @@ struct MiniWindow: Identifiable {
 struct MiniWorkspace: Identifiable {
     var id: String { name }
     let name: String
+    let label: String
     let isFocused: Bool
     let windows: [MiniWindow]
 }
@@ -20,17 +21,35 @@ struct MiniWorkspace: Identifiable {
     @Published var workspaces: [MiniWorkspace] = []
     @Published var selectedName: String? = nil
     @Published var appeared = false
+    let monitorLetter: String?
+    let workspaceNames: [String]
+
+    init(monitorLetter: String?, workspaceNames: [String]) {
+        self.monitorLetter = monitorLetter
+        self.workspaceNames = workspaceNames
+    }
+}
+
+private struct MissionControlOverlay {
+    let panel: MissionControlPanel
+    let model: MissionControlViewModel
+}
+
+private struct MissionControlScreen {
+    let screen: NSScreen
+    let monitor: Monitor
+    let letter: String?
+    let workspaceNames: [String]
 }
 
 @MainActor enum MissionControl {
     static let workspaceOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
-    private static var panel: NSPanel? = nil
-    private static var model: MissionControlViewModel? = nil
+    private static var overlays: [MissionControlOverlay] = []
     private static var refreshTimer: Timer? = nil
     private static var didRequestScreenCapture = false
     // Fallback for windows whose live capture transiently fails (kept only while the overlay is open).
     private static var imageCache: [UInt32: CGImage] = [:]
-    static var isShown: Bool { panel != nil }
+    static var isShown: Bool { !overlays.isEmpty }
 
     static func toggle() {
         isShown ? hide() : show()
@@ -39,14 +58,15 @@ struct MiniWorkspace: Identifiable {
     static func hide(refocus: Bool = true) {
         refreshTimer?.invalidate()
         refreshTimer = nil
-        if let closing = panel, let closingModel = model, motionAllowed {
-            withAnimation(.easeOut(duration: 0.15)) { closingModel.appeared = false }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { closing.orderOut(nil) }
-        } else {
-            panel?.orderOut(nil)
+        for closing in overlays {
+            if motionAllowed {
+                withAnimation(.easeOut(duration: 0.15)) { closing.model.appeared = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { closing.panel.orderOut(nil) }
+            } else {
+                closing.panel.orderOut(nil)
+            }
         }
-        panel = nil
-        model = nil
+        overlays = []
         imageCache = [:]
         resumeHotkeys()
         if refocus {
@@ -60,49 +80,78 @@ struct MiniWorkspace: Identifiable {
 
     static func show() {
         if isShown { return }
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let viewModel = MissionControlViewModel()
-        viewModel.workspaces = capture()
-        viewModel.selectedName = focus.workspace.name
-        model = viewModel
-        // nonactivatingPanel: must display and take keyboard even when macOS
-        // denies app activation (a freshly relaunched accessory app always is denied).
-        let p = MissionControlPanel(
-            contentRect: screen.frame,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false,
-        )
-        p.level = .popUpMenu
-        p.isOpaque = false
-        p.backgroundColor = .clear
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        p.contentView = NSHostingView(rootView: MissionControlView(
-            model: viewModel,
-            monitorAspect: mainMonitor.width / max(mainMonitor.height, 1),
-        ))
+        let focusedMonitorKey = focus.workspace.workspaceMonitor.key
+        let targets = overlayScreens()
+        for target in targets {
+            let viewModel = MissionControlViewModel(monitorLetter: target.letter, workspaceNames: target.workspaceNames)
+            viewModel.workspaces = capture(viewModel.workspaceNames)
+            viewModel.selectedName = target.monitor.key == focusedMonitorKey ? focus.workspace.name : target.monitor.activeWorkspace.name
+            // nonactivatingPanel: must display and take keyboard even when macOS
+            // denies app activation (a freshly relaunched accessory app always is denied).
+            let p = MissionControlPanel(
+                contentRect: target.screen.frame,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false,
+            )
+            p.model = viewModel
+            p.level = .popUpMenu
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            p.contentView = NSHostingView(rootView: MissionControlView(
+                model: viewModel,
+                monitorAspect: target.monitor.width / max(target.monitor.height, 1),
+            ))
+            overlays.append(MissionControlOverlay(panel: p, model: viewModel))
+        }
+        let keyOverlayIndex = targets.firstIndex { $0.monitor.key == focusedMonitorKey } ?? 0
         NSApp.activate(ignoringOtherApps: true)
-        p.makeKeyAndOrderFront(nil)
-        p.orderFrontRegardless()
-        panel = p
+        for (index, overlay) in overlays.enumerated() where index != keyOverlayIndex {
+            overlay.panel.orderFrontRegardless()
+        }
+        overlays.getOrNil(atIndex: keyOverlayIndex)?.panel.makeKeyAndOrderFront(nil)
+        overlays.getOrNil(atIndex: keyOverlayIndex)?.panel.orderFrontRegardless()
         suspendHotkeys()
-        if motionAllowed {
-            DispatchQueue.main.async {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { viewModel.appeared = true }
+        for overlay in overlays {
+            if motionAllowed {
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { overlay.model.appeared = true }
+                }
+            } else {
+                overlay.model.appeared = true
             }
-        } else {
-            viewModel.appeared = true
         }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
-                guard isShown, let model else { return }
+                guard isShown else { return }
                 // Watchdog: an overlay that failed to display must never strand
                 // the user with suspended hotkeys.
-                if panel?.isVisible != true {
+                if overlays.contains(where: { !$0.panel.isVisible }) {
                     hide(refocus: false)
                     return
                 }
-                model.workspaces = capture()
+                for overlay in overlays {
+                    overlay.model.workspaces = capture(overlay.model.workspaceNames)
+                }
+            }
+        }
+    }
+
+    private static func overlayScreens() -> [MissionControlScreen] {
+        let screens = NSScreen.screens
+        guard perMonitorWorkspacesAreOn else {
+            let screen = NSScreen.main ?? screens[0]
+            return [MissionControlScreen(screen: screen, monitor: mainMonitor, letter: nil, workspaceNames: workspaceOrder)]
+        }
+        return monitorsInLetterOrder(sortedMonitors).compactMap { monitor, letter in
+            screens.getOrNil(atIndex: monitor.monitorAppKitNsScreenScreensId - 1).map { screen in
+                MissionControlScreen(
+                    screen: screen,
+                    monitor: monitor,
+                    letter: String(letter).uppercased(),
+                    workspaceNames: monitor.ownWorkspaces.map(\.name),
+                )
             }
         }
     }
@@ -116,23 +165,27 @@ struct MiniWorkspace: Identifiable {
         }
     }
 
-    static func moveSelection(dx: Int, dy: Int) {
-        guard let model else { return }
+    static func moveSelection(in model: MissionControlViewModel, dx: Int, dy: Int) {
         let columns = 5
         let rows = 2
-        let current = model.selectedName.flatMap { workspaceOrder.firstIndex(of: $0) } ?? 0
+        let current = model.selectedName.flatMap { model.workspaceNames.firstIndex(of: $0) } ?? 0
         let col = ((current % columns) + dx + columns) % columns
         let row = ((current / columns) + dy + rows) % rows
-        model.selectedName = workspaceOrder[row * columns + col]
+        model.selectedName = model.workspaceNames.getOrNil(atIndex: row * columns + col) ?? model.selectedName
     }
 
-    static func activateSelection() {
-        guard let name = model?.selectedName else { return }
+    static func activateSelection(in model: MissionControlViewModel) {
+        guard let name = model.selectedName else { return }
+        switchTo(name)
+    }
+
+    static func switchTo(label: String, in model: MissionControlViewModel) {
+        guard let name = model.workspaces.first(where: { $0.label == label })?.name else { return }
         switchTo(name)
     }
 
     static func select(_ name: String) {
-        model?.selectedName = name
+        overlays.first { $0.model.workspaceNames.contains(name) }?.model.selectedName = name
     }
 
     // While the overlay is up, every AeroSpace hotkey is unregistered so alt-w/alt-hjkl/alt-shift-*
@@ -158,10 +211,10 @@ struct MiniWorkspace: Identifiable {
         return false
     }
 
-    private static func capture() -> [MiniWorkspace] {
+    private static func capture(_ workspaceNames: [String]) -> [MiniWorkspace] {
         let canCapture = preflightCanCapture()
         let focusedName = focus.workspace.name
-        return workspaceOrder.map { name in
+        return workspaceNames.map { name in
             let workspace = Workspace.get(byName: name)
             let monitorRect = workspace.workspaceMonitor.rect
             var tiled: [(Window, CGRect)] = []
@@ -180,7 +233,7 @@ struct MiniWorkspace: Identifiable {
                     image: imageCache[window.windowId],
                 )
             }
-            return MiniWorkspace(name: name, isFocused: name == focusedName, windows: windows)
+            return MiniWorkspace(name: name, label: workspace.localName, isFocused: name == focusedName, windows: windows)
         }
     }
 
@@ -229,32 +282,34 @@ struct MiniWorkspace: Identifiable {
 }
 
 private final class MissionControlPanel: NSPanel {
+    var model: MissionControlViewModel? = nil
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
+        guard let model else { return super.keyDown(with: event) }
         switch event.keyCode {
             case 53: // esc
                 Task { @MainActor in MissionControl.hide() }
                 return
             case 123: // left
-                Task { @MainActor in MissionControl.moveSelection(dx: -1, dy: 0) }
+                Task { @MainActor in MissionControl.moveSelection(in: model, dx: -1, dy: 0) }
                 return
             case 124: // right
-                Task { @MainActor in MissionControl.moveSelection(dx: 1, dy: 0) }
+                Task { @MainActor in MissionControl.moveSelection(in: model, dx: 1, dy: 0) }
                 return
             case 125: // down
-                Task { @MainActor in MissionControl.moveSelection(dx: 0, dy: 1) }
+                Task { @MainActor in MissionControl.moveSelection(in: model, dx: 0, dy: 1) }
                 return
             case 126: // up
-                Task { @MainActor in MissionControl.moveSelection(dx: 0, dy: -1) }
+                Task { @MainActor in MissionControl.moveSelection(in: model, dx: 0, dy: -1) }
                 return
             case 36, 76, 49: // return, keypad enter, space
-                Task { @MainActor in MissionControl.activateSelection() }
+                Task { @MainActor in MissionControl.activateSelection(in: model) }
                 return
             default: break
         }
         if let chars = event.charactersIgnoringModifiers, chars.count == 1, chars.allSatisfy(\.isNumber) {
-            Task { @MainActor in MissionControl.switchTo(chars) }
+            Task { @MainActor in MissionControl.switchTo(label: chars, in: model) }
             return
         }
         super.keyDown(with: event)
@@ -270,6 +325,11 @@ struct MissionControlView: View {
             BlurView()
             Color.black.opacity(0.25)
             VStack(spacing: 28) {
+                if let letter = model.monitorLetter {
+                    Text(letter)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.9))
+                }
                 row(Array(model.workspaces.prefix(5)), startIndex: 0)
                 row(Array(model.workspaces.suffix(5)), startIndex: 5)
             }
@@ -348,7 +408,7 @@ private struct MiniWorkspaceCell: View {
             .scaleEffect(isSelected ? 1.04 : 1)
             .shadow(color: isSelected ? .black.opacity(0.5) : .clear, radius: 12, y: 4)
             .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
-            Text(workspace.name)
+            Text(workspace.label)
                 .font(.system(size: 15, weight: workspace.isFocused || isSelected ? .bold : .regular, design: .rounded))
                 .foregroundColor(isSelected ? .white : workspace.isFocused ? .accentColor : .white.opacity(0.8))
         }
