@@ -24,7 +24,7 @@ enum AxPermissionStatus: Equatable {
 }
 
 @MainActor func updateTrayText() {
-    let sortedMonitors = sortedMonitors
+    let sortedMonitors = sortedMonitorInfos
     let focus = focus
     let shownMode = activeMode?.takeIf { $0 != mainModeId && !(perMonitorWorkspacesAreOn && $0 == floatingModeId) }
     let monitorLabels = perMonitorWorkspacesAreOn ? perMonitorTrayLabels(sortedMonitors, focus) : nil
@@ -72,7 +72,7 @@ enum AxPermissionStatus: Equatable {
     TrayMenuModel.shared.trayItems = items
 }
 
-@MainActor private func perMonitorTrayLabels(_ monitors: [Monitor], _ focus: LiveFocus) -> (text: String, items: [TrayItem]) {
+@MainActor private func perMonitorTrayLabels(_ monitors: [MonitorInfo], _ focus: LiveFocus) -> (text: String, items: [TrayItem]) {
     let lettered = monitorsInLetterOrder(monitors)
     let items = lettered.map { monitor, letter in
         let workspace = monitor.activeWorkspace

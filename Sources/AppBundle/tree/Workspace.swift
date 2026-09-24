@@ -10,13 +10,13 @@ import Common
 @MainActor private var visibleWorkspaceToScreenPoint: [Workspace: CGPoint] = [:]
 
 // The returned workspace must be invisible and it must belong to the requested monitor
-@MainActor func getStubWorkspace(for monitor: Monitor) -> Workspace {
+@MainActor func getStubWorkspace(for monitor: MonitorInfo) -> Workspace {
     getStubWorkspace(forPoint: monitor.rect.topLeftCorner)
 }
 
 @MainActor
 private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
-    if perMonitorWorkspacesAreOn, let monitor = monitors.first(where: { $0.rect.topLeftCorner == point }) {
+    if perMonitorWorkspacesAreOn, let monitor = monitorInfos.first(where: { $0.rect.topLeftCorner == point }) {
         return getStubWorkspace(ownedBy: monitor)
     }
     if let prev = screenPointToPrevVisibleWorkspace[point].map({ Workspace.get(byName: $0) }),
@@ -36,7 +36,7 @@ private func getStubWorkspace(forPoint point: CGPoint) -> Workspace {
 }
 
 @MainActor
-private func getStubWorkspace(ownedBy monitor: Monitor) -> Workspace {
+private func getStubWorkspace(ownedBy monitor: MonitorInfo) -> Workspace {
     if let lastVisible = monitorKeyToLastVisibleWorkspaceName[monitor.key].map({ Workspace.get(byName: $0) }),
        !lastVisible.isVisible && lastVisible.ownerMonitorKey == monitor.key
     {
@@ -101,7 +101,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
             _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
         }
         let monitorKeysOwningWorkspaces = monitorKeysOwningWorkspaces()
-        for monitor in monitors where monitorKeysOwningWorkspaces.contains(monitor.key) {
+        for monitor in monitorInfos where monitorKeysOwningWorkspaces.contains(monitor.key) {
             _ = monitor.ownWorkspaces
         }
         workspaceNameToWorkspace = workspaceNameToWorkspace.filter { (_, workspace: Workspace) in
@@ -125,15 +125,15 @@ extension Workspace {
     @MainActor
     var isVisible: Bool { visibleWorkspaceToScreenPoint.keys.contains(self) }
     @MainActor
-    var workspaceMonitor: Monitor {
+    var workspaceMonitor: MonitorInfo {
         forceAssignedMonitor
             ?? visibleWorkspaceToScreenPoint[self]?.monitorApproximation
             ?? assignedMonitorPoint?.monitorApproximation
-            ?? mainMonitor
+            ?? mainMonitorInfo
     }
 }
 
-extension Monitor {
+extension MonitorInfo {
     @MainActor
     var activeWorkspace: Workspace {
         if let existing = screenPointToVisibleWorkspace[rect.topLeftCorner] {
@@ -164,7 +164,7 @@ func forgetMonitorsForTests() {
 
 @MainActor
 func gcMonitors(now: Date = .now) {
-    let monitors = monitors
+    let monitors = monitorInfos
     let someMonitorShowsAWorkspaceItMustNot = screenPointToVisibleWorkspace.contains { !isValidAssignment(workspace: $0.value, screen: $0.key) }
     if monitorKeyToScreenPoint(monitors) != monitorKeyToScreenPointAtLastArrangement ||
         screenPointToVisibleWorkspace.count != monitors.count ||
@@ -177,7 +177,7 @@ func gcMonitors(now: Date = .now) {
     }
 }
 
-private func monitorKeyToScreenPoint(_ monitors: [Monitor]) -> [String: CGPoint] {
+private func monitorKeyToScreenPoint(_ monitors: [MonitorInfo]) -> [String: CGPoint] {
     Dictionary(monitors.map { ($0.key, $0.rect.topLeftCorner) }, uniquingKeysWith: { first, _ in first })
 }
 
@@ -206,7 +206,7 @@ extension CGPoint {
 
 @MainActor
 private func rearrangeWorkspacesOnMonitors() {
-    let newMonitors = monitors
+    let newMonitors = monitorInfos
     let newScreens = newMonitors.map(\.rect.topLeftCorner)
     var newScreenToOldScreenMapping: [CGPoint: CGPoint] = [:]
     for monitor in newMonitors {
@@ -251,7 +251,7 @@ private func rearrangeWorkspacesOnMonitors() {
 @MainActor
 private func isValidAssignment(workspace: Workspace, screen: CGPoint) -> Bool {
     if perMonitorWorkspacesAreOn {
-        return workspace.ownerMonitorKey != nil && monitors.first { $0.rect.topLeftCorner == screen }?.key == workspace.ownerMonitorKey
+        return workspace.ownerMonitorKey != nil && monitorInfos.first { $0.rect.topLeftCorner == screen }?.key == workspace.ownerMonitorKey
     }
     return switch workspace.forceAssignedMonitor {
         case let forceAssigned? where forceAssigned.rect.topLeftCorner != screen: false

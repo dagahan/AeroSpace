@@ -105,7 +105,7 @@ struct SavedState: Codable {
 
     // Corner-hidden windows get captured at garbage coordinates; a frame that is
     // mostly offscreen is contamination, never user intent.
-    private static func mostlyOnScreen(_ bounds: CGRect, _ monitor: any Monitor) -> Bool {
+    private static func mostlyOnScreen(_ bounds: CGRect, _ monitor: any MonitorInfo) -> Bool {
         let v = monitor.visibleRect
         let overlap = bounds.intersection(CGRect(x: v.topLeftX, y: v.topLeftY, width: v.width, height: v.height))
         return !overlap.isNull && overlap.width * overlap.height >= bounds.width * bounds.height * 0.5
@@ -113,7 +113,7 @@ struct SavedState: Codable {
 
     static func restoreFloatingFrame(_ window: MacWindow) {
         guard let saved = lookup(window.windowId), saved.isFloating, let frame = saved.frame else { return }
-        let v = (window.nodeWorkspace?.workspaceMonitor ?? mainMonitor).visibleRect
+        let v = (window.nodeWorkspace?.workspaceMonitor ?? mainMonitorInfo).visibleRect
         let width = min(frame.width, v.width)
         let height = min(frame.height, v.height)
         let x = min(max(frame.x, v.topLeftX), v.topLeftX + v.width - width)

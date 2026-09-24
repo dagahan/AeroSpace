@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-struct MonitorImpl {
+struct MonitorInfoImpl {
     let monitorAppKitNsScreenScreensId: Int
     let name: String
     let key: String
@@ -10,13 +10,13 @@ struct MonitorImpl {
     let isMain: Bool
 }
 
-extension MonitorImpl: Monitor {
+extension MonitorInfoImpl: MonitorInfo {
     var height: CGFloat { rect.height }
     var width: CGFloat { rect.width }
 }
 
 /// Use it instead of NSScreen because it can be mocked in tests
-protocol Monitor: AeroAny {
+protocol MonitorInfo: AeroAny {
     /// The index in NSScreen.screens array. 1-based index
     var monitorAppKitNsScreenScreensId: Int { get }
     var name: String { get }
@@ -28,7 +28,7 @@ protocol Monitor: AeroAny {
     var isMain: Bool { get }
 }
 
-final class LazyMonitor: Monitor {
+final class LazyMonitorInfo: MonitorInfo {
     private let screen: NSScreen
     let monitorAppKitNsScreenScreensId: Int
     let name: String
@@ -63,8 +63,8 @@ final class LazyMonitor: Monitor {
 // 2. It's inaccurate because NSScreen.main doesn't work correctly from NSWorkspace.didActivateApplicationNotification &
 //    kAXFocusedWindowChangedNotification callbacks.
 extension NSScreen {
-    fileprivate func toMonitor(monitorAppKitNsScreenScreensId: Int, key: String) -> Monitor {
-        MonitorImpl(
+    fileprivate func toMonitorInfo(monitorAppKitNsScreenScreensId: Int, key: String) -> MonitorInfo {
+        MonitorInfoImpl(
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
             name: localizedName,
             key: key,
@@ -110,37 +110,37 @@ func monitorKeyOf(displayId: CGDirectDisplayID) -> String {
     return "\(vendor).\(model)"
 }
 
-extension Monitor {
+extension MonitorInfo {
     var isStandIn: Bool { key == standInMonitorKey }
 }
 
-private let testMonitorRect = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
-let testMonitor = MonitorImpl(
+private let testMonitorInfoRect = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
+let testMonitorInfo = MonitorInfoImpl(
     monitorAppKitNsScreenScreensId: 1,
     name: "Test Monitor",
     key: "test",
-    rect: testMonitorRect,
-    visibleRect: testMonitorRect,
+    rect: testMonitorInfoRect,
+    visibleRect: testMonitorInfoRect,
     isMain: true,
 )
-nonisolated(unsafe) var unitTestMonitors: [Monitor] = [testMonitor]
+nonisolated(unsafe) var unitTestMonitors: [MonitorInfo] = [testMonitorInfo]
 
-var mainMonitor: Monitor {
+var mainMonitorInfo: MonitorInfo {
     if isUnitTest { return unsafe unitTestMonitors.first(where: \.isMain) ?? unitTestMonitors[0] }
     let screens = NSScreen.screens
     // Fallback: If main screen can't be found (e.g., during display reconfiguration),
     // return screens.first or testMonitor to avoid crash
     let screen = screens.withIndex.singleOrNil(where: \.value.isMainScreen) ?? screens.first.map { (0, $0) }
-    guard let screen else { return testMonitor }
+    guard let screen else { return testMonitorInfo }
     let key = uniqueMonitorKeys(screens)[screen.index]
-    return LazyMonitor(monitorAppKitNsScreenScreensId: screen.index + 1, key: key, isMain: true, screen.value)
+    return LazyMonitorInfo(monitorAppKitNsScreenScreensId: screen.index + 1, key: key, isMain: true, screen.value)
 }
 
-var monitors: [Monitor] {
+var monitorInfos: [MonitorInfo] {
     if isUnitTest { return unsafe unitTestMonitors }
     let screens = NSScreen.screens
     return zip(screens.enumerated(), uniqueMonitorKeys(screens)).map { screen, key in
-        screen.element.toMonitor(monitorAppKitNsScreenScreensId: screen.offset + 1, key: key)
+        screen.element.toMonitorInfo(monitorAppKitNsScreenScreensId: screen.offset + 1, key: key)
     }
 }
 
@@ -154,6 +154,6 @@ private func uniqueMonitorKeys(_ screens: [NSScreen]) -> [String] {
     }
 }
 
-var sortedMonitors: [Monitor] {
-    monitors.sortedBy([\.rect.minX, \.rect.minY])
+var sortedMonitorInfos: [MonitorInfo] {
+    monitorInfos.sortedBy([\.rect.minX, \.rect.minY])
 }

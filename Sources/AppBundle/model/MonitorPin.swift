@@ -5,8 +5,8 @@ let pinDoubleTapInterval: TimeInterval = 0.3
 @MainActor var pinnedMonitorKey: String? = nil
 @MainActor private var lastLetterTap: (monitorKey: String, at: Date)? = nil
 
-@MainActor var pinnedMonitor: Monitor? {
-    pinnedMonitorKey.flatMap { key in monitors.first { $0.key == key } }
+@MainActor var pinnedMonitor: MonitorInfo? {
+    pinnedMonitorKey.flatMap { key in monitorInfos.first { $0.key == key } }
 }
 
 @MainActor func noteLetterTap(onMonitor key: String, at now: Date = .now) {

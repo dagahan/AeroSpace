@@ -2,8 +2,8 @@
 import Common
 import XCTest
 
-let leftDeskMonitor = testMonitor("3996", x: -2560, y: 0)
-let rightDeskMonitor = testMonitor("39260", x: 0, y: 0)
+let leftDeskMonitor = testMonitorInfo("3996", x: -2560, y: 0)
+let rightDeskMonitor = testMonitorInfo("39260", x: 0, y: 0)
 
 @MainActor
 func setUpPerMonitorWorkspaces() {
@@ -73,7 +73,7 @@ final class PerMonitorWorkspacesTest: XCTestCase {
     }
 
     func testAMonitorNeverSeenBeforeShowsItsOwnOne() {
-        let third = testMonitor("777", x: 2560, y: 0)
+        let third = testMonitorInfo("777", x: 2560, y: 0)
         plugTestMonitors(leftDeskMonitor, rightDeskMonitor, third)
         Workspace.garbageCollectUnusedWorkspaces()
         assertEquals(third.activeWorkspace.name, "777-1")
@@ -81,7 +81,7 @@ final class PerMonitorWorkspacesTest: XCTestCase {
     }
 
     func testTheStandInGetsOneWorkspaceToShowAndKeepsNoneOfItsOwn() {
-        let standIn = testMonitor(standInMonitorKey, x: 0, y: 0, width: 1920, height: 1080)
+        let standIn = testMonitorInfo(standInMonitorKey, x: 0, y: 0, width: 1920, height: 1080)
         plugTestMonitors(standIn)
         Workspace.garbageCollectUnusedWorkspaces()
         assertEquals(standIn.activeWorkspace.name, "stand-in-1")

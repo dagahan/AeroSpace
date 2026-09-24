@@ -6,14 +6,14 @@ private let unpluggedAt = Date(timeIntervalSinceReferenceDate: 1_000_000)
 private let withinGrace = unpluggedAt.addingTimeInterval(2)
 private let afterGrace = unpluggedAt.addingTimeInterval(3.1)
 
-private let builtinUnderTheMonitors = testMonitor(builtinMonitorKey, x: 0, y: 0, width: 1512, height: 982)
-private let leftAboveTheLaptop = testMonitor("3996", x: -533, y: -1440)
-private let rightAboveTheLaptop = testMonitor("39260", x: 2027, y: -1440)
-private let builtinAlone = testMonitor(builtinMonitorKey, x: 0, y: 0, width: 1512, height: 982)
-private let standInAlone = testMonitor(standInMonitorKey, x: 0, y: 0, width: 1920, height: 1080)
+private let builtinUnderTheMonitors = testMonitorInfo(builtinMonitorKey, x: 0, y: 0, width: 1512, height: 982)
+private let leftAboveTheLaptop = testMonitorInfo("3996", x: -533, y: -1440)
+private let rightAboveTheLaptop = testMonitorInfo("39260", x: 2027, y: -1440)
+private let builtinAlone = testMonitorInfo(builtinMonitorKey, x: 0, y: 0, width: 1512, height: 982)
+private let standInAlone = testMonitorInfo(standInMonitorKey, x: 0, y: 0, width: 1920, height: 1080)
 
 @MainActor
-private func plug(_ monitors: MonitorImpl..., at now: Date) {
+private func plug(_ monitors: MonitorInfoImpl..., at now: Date) {
     unitTestMonitors = monitors
     gcMonitors(now: now)
     Workspace.garbageCollectUnusedWorkspaces()
@@ -149,7 +149,7 @@ final class UnpluggedMonitorsTest: XCTestCase {
 
     func testS8AMonitorNeverSeenBeforeTakesNothing() {
         _ = tiledWindows("3996-2", ids: [1])
-        let third = testMonitor("777", x: 2560, y: 0)
+        let third = testMonitorInfo("777", x: 2560, y: 0)
         plug(leftDeskMonitor, rightDeskMonitor, third, at: unpluggedAt)
         plug(leftDeskMonitor, rightDeskMonitor, third, at: afterGrace)
         assertEquals(windowIds("3996-2"), [1])

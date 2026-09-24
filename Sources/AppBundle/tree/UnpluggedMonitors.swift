@@ -19,7 +19,7 @@ func forgetUnpluggedMonitorsForTests() {
 }
 
 @MainActor
-func followUnpluggedAndReturningMonitors(_ monitors: [Monitor], now: Date) {
+func followUnpluggedAndReturningMonitors(_ monitors: [MonitorInfo], now: Date) {
     let realMonitors = monitors.filter { !$0.isStandIn }
     let realMonitorRects = Dictionary(realMonitors.map { ($0.key, $0.rect) }, uniquingKeysWith: { first, _ in first })
     for (key, rect) in realMonitorRectsSeenLastTime where realMonitorRects[key] == nil && unpluggedMonitors[key] == nil {
@@ -37,7 +37,7 @@ func followUnpluggedAndReturningMonitors(_ monitors: [Monitor], now: Date) {
 }
 
 @MainActor
-private func moveWindowsOffMonitorsGoneForGood(_ realMonitors: [Monitor], now: Date) {
+private func moveWindowsOffMonitorsGoneForGood(_ realMonitors: [MonitorInfo], now: Date) {
     if realMonitors.isEmpty { return }
     let presentKeys = realMonitors.map(\.key).toSet()
     let focusedWindow = focus.windowOrNil
@@ -74,7 +74,7 @@ private func moveWindowsOffMonitorsGoneForGood(_ realMonitors: [Monitor], now: D
 }
 
 @MainActor
-private func nearestMonitor(to unplugged: UnpluggedMonitor?, among monitors: [Monitor]) -> Monitor {
+private func nearestMonitor(to unplugged: UnpluggedMonitor?, among monitors: [MonitorInfo]) -> MonitorInfo {
     guard let unplugged, let lastRect = unplugged.lastRect else {
         return monitors.first(where: \.isMain) ?? monitors.first.orDie()
     }

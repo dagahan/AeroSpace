@@ -14,7 +14,7 @@ enum WorkspaceTransition: String, Sendable {
 @MainActor func cocoaFrame(_ rect: Rect) -> NSRect {
     NSRect(
         x: rect.topLeftX,
-        y: mainMonitor.height - rect.topLeftY - rect.height,
+        y: mainMonitorInfo.height - rect.topLeftY - rect.height,
         width: rect.width,
         height: rect.height,
     )

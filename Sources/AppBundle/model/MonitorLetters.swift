@@ -3,12 +3,12 @@ private let lettersByRowAndMonitorCount: [[String]] = [
     ["c", "cv", "xcv", "xcvb"],
 ]
 
-func monitorLetters(_ monitors: [Monitor]) -> [String: Character] {
+func monitorLetters(_ monitors: [MonitorInfo]) -> [String: Character] {
     Dictionary(monitorsInLetterOrder(monitors).map { ($0.monitor.key, $0.letter) }, uniquingKeysWith: { first, _ in first })
 }
 
-func monitorsInLetterOrder(_ monitors: [Monitor]) -> [(monitor: Monitor, letter: Character)] {
-    var rows: [[Monitor]] = []
+func monitorsInLetterOrder(_ monitors: [MonitorInfo]) -> [(monitor: MonitorInfo, letter: Character)] {
+    var rows: [[MonitorInfo]] = []
     for monitor in monitors.filter({ !$0.isStandIn }).sorted(by: { $0.rect.minY < $1.rect.minY }) {
         if let rowIndex = rows.firstIndex(where: { row in row.contains { $0.relation(to: monitor) == .h } }) {
             rows[rowIndex].append(monitor)
@@ -16,7 +16,7 @@ func monitorsInLetterOrder(_ monitors: [Monitor]) -> [(monitor: Monitor, letter:
             rows.append([monitor])
         }
     }
-    var lettered: [(monitor: Monitor, letter: Character)] = []
+    var lettered: [(monitor: MonitorInfo, letter: Character)] = []
     for (row, letterSets) in zip(rows, lettersByRowAndMonitorCount) {
         let monitorsLeftToRight = row.sorted(by: { $0.rect.minX < $1.rect.minX }).prefix(letterSets.count)
         let letterSet = letterSets[monitorsLeftToRight.count - 1]
@@ -25,6 +25,6 @@ func monitorsInLetterOrder(_ monitors: [Monitor]) -> [(monitor: Monitor, letter:
     return lettered
 }
 
-extension Monitor {
-    var letter: Character? { monitorLetters(monitors)[key] }
+extension MonitorInfo {
+    var letter: Character? { monitorLetters(monitorInfos)[key] }
 }

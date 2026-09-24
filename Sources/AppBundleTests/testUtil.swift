@@ -24,7 +24,7 @@ func setUpWorkspacesForTests() {
     // Don't create any bindings and workspaces for tests
     config.modes = [mainModeId: Mode(bindings: [:])]
     config.persistentWorkspaces = []
-    unitTestMonitors = [testMonitor]
+    unitTestMonitors = [testMonitorInfo]
     forgetMonitorsForTests()
     forgetPinForTests()
 
@@ -37,19 +37,19 @@ func setUpWorkspacesForTests() {
     Workspace.garbageCollectUnusedWorkspaces()
     check(focus.workspace.isEffectivelyEmpty)
     check(focus.workspace === Workspace.all.singleOrNil(), Workspace.all.map(\.description).joined(separator: ", "))
-    check(mainMonitor.setActiveWorkspace(focus.workspace))
+    check(mainMonitorInfo.setActiveWorkspace(focus.workspace))
 
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
 }
 
-func testMonitor(_ key: String, x: CGFloat, y: CGFloat, width: CGFloat = 2560, height: CGFloat = 1440) -> MonitorImpl {
+func testMonitorInfo(_ key: String, x: CGFloat, y: CGFloat, width: CGFloat = 2560, height: CGFloat = 1440) -> MonitorInfoImpl {
     let rect = Rect(topLeftX: x, topLeftY: y, width: width, height: height)
-    return MonitorImpl(monitorAppKitNsScreenScreensId: 1, name: key, key: key, rect: rect, visibleRect: rect, isMain: x == 0 && y == 0)
+    return MonitorInfoImpl(monitorAppKitNsScreenScreensId: 1, name: key, key: key, rect: rect, visibleRect: rect, isMain: x == 0 && y == 0)
 }
 
 @MainActor
-func plugTestMonitors(_ monitors: MonitorImpl...) {
+func plugTestMonitors(_ monitors: MonitorInfoImpl...) {
     unitTestMonitors = monitors
     gcMonitors()
 }

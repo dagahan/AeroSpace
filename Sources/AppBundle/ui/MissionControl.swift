@@ -37,7 +37,7 @@ private struct MissionControlOverlay {
 
 private struct MissionControlScreen {
     let screen: NSScreen
-    let monitor: Monitor
+    let monitor: MonitorInfo
     let letter: String?
     let workspaceNames: [String]
 }
@@ -142,9 +142,9 @@ private struct MissionControlScreen {
         let screens = NSScreen.screens
         guard perMonitorWorkspacesAreOn else {
             let screen = NSScreen.main ?? screens[0]
-            return [MissionControlScreen(screen: screen, monitor: mainMonitor, letter: nil, workspaceNames: workspaceOrder)]
+            return [MissionControlScreen(screen: screen, monitor: mainMonitorInfo, letter: nil, workspaceNames: workspaceOrder)]
         }
-        return monitorsInLetterOrder(sortedMonitors).compactMap { monitor, letter in
+        return monitorsInLetterOrder(sortedMonitorInfos).compactMap { monitor, letter in
             screens.getOrNil(atIndex: monitor.monitorAppKitNsScreenScreensId - 1).map { screen in
                 MissionControlScreen(
                     screen: screen,

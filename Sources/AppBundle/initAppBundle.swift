@@ -21,7 +21,7 @@ import Foundation
         GlobalObserver.initObserver()
         MinimizeGuard.start()
         Workspace.garbageCollectUnusedWorkspaces() // init workspaces
-        _ = (RestoreState.savedFocusedWorkspace.map { Workspace.get(byName: resolveWorkspaceName($0, on: mainMonitor)) } ?? Workspace.all.first)?.focusWorkspace()
+        _ = (RestoreState.savedFocusedWorkspace.map { Workspace.get(byName: resolveWorkspaceName($0, on: mainMonitorInfo)) } ?? Workspace.all.first)?.focusWorkspace()
         await runHeavyCompleteRefreshSession(
             .startup,
             // It's important for the first initialization to be non cancellable

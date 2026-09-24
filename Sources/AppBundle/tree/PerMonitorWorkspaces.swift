@@ -19,7 +19,7 @@ struct PerMonitorWorkspaceName: Equatable {
         : nil
 }
 
-@MainActor func resolveWorkspaceName(_ name: String, on monitor: Monitor) -> String {
+@MainActor func resolveWorkspaceName(_ name: String, on monitor: MonitorInfo) -> String {
     perMonitorWorkspacesAreOn && config.perMonitorWorkspaces.contains(name)
         ? PerMonitorWorkspaceName(ownerMonitorKey: monitor.key, localName: name).fullName
         : name
@@ -35,7 +35,7 @@ extension Workspace {
     @MainActor var isFloatingWorkspace: Bool { isFloatingWorkspaceName(name) }
 }
 
-extension Monitor {
+extension MonitorInfo {
     @MainActor func ownWorkspace(_ localName: String) -> Workspace {
         Workspace.get(byName: PerMonitorWorkspaceName(ownerMonitorKey: key, localName: localName).fullName)
     }
@@ -54,5 +54,5 @@ extension Monitor {
 }
 
 @MainActor func monitorKeysOwningWorkspaces() -> Set<String> {
-    perMonitorWorkspacesAreOn ? monitors.filter { !$0.isStandIn }.map(\.key).toSet() : []
+    perMonitorWorkspacesAreOn ? monitorInfos.filter { !$0.isStandIn }.map(\.key).toSet() : []
 }

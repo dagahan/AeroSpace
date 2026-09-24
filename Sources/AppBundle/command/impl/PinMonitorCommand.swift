@@ -11,7 +11,7 @@ struct PinMonitorCommand: Command {
                 pinnedMonitorKey = nil
                 return .succ
             case .monitor(let description):
-                guard let monitor = description.resolveMonitor(sortedMonitors: sortedMonitors) else {
+                guard let monitor = description.resolveMonitor(sortedMonitors: sortedMonitorInfos) else {
                     return .fail(io.err("No monitor matches the pattern"))
                 }
                 pinnedMonitorKey = monitor.key

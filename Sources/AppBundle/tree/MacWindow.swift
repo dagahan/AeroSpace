@@ -21,10 +21,10 @@ final class MacWindow: Window {
         let rect = try await macApp.getAxRect(windowId, .cancellable)
         let restored = isStartup ? RestoreState.lookup(windowId) : nil
         let placement = isStartup ? nil : SmartOpen.expectedPlacement(forAppNamed: macApp.name)
-        let targetWorkspace = restored.map { Workspace.get(byName: resolveWorkspaceName($0.workspace, on: rect?.center.monitorApproximation ?? mainMonitor)) }
+        let targetWorkspace = restored.map { Workspace.get(byName: resolveWorkspaceName($0.workspace, on: rect?.center.monitorApproximation ?? mainMonitorInfo)) }
             ?? placement.map { Workspace.get(byName: $0.workspaceName) }
             ?? (isStartup
-                ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
+                ? (rect?.center.monitorApproximation ?? mainMonitorInfo).activeWorkspace
                 : focus.workspace)
         var data = try await unbindAndGetBindingDataForNewWindow(
             windowId,
