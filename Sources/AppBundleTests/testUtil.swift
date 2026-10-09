@@ -41,6 +41,8 @@ func setUpWorkspacesForTests() {
 
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
+
+    global_layoutForNextDetectedWindow = nil
 }
 
 func testMonitorInfo(_ key: String, x: CGFloat, y: CGFloat, width: CGFloat = 2560, height: CGFloat = 1440) -> MonitorInfoImpl {
