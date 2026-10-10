@@ -1,5 +1,5 @@
 private let lettersByRowAndMonitorCount: [[String]] = [
-    ["d", "df", "sdf", "sdfg"],
+    ["e", "er", "ert", "erty"],
     ["c", "cv", "xcv", "xcvb"],
 ]
 
