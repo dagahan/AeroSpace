@@ -29,7 +29,6 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case macosNativeFullscreen = "macos-native-fullscreen"
     case macosNativeMinimize = "macos-native-minimize"
     case missionControl = "mission-control"
-    case pinMonitor = "pin-monitor"
     case smartOpen = "smart-open"
     case mode
     case move = "move"
@@ -127,8 +126,6 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result["move-workspace-to-display"] = SubCommandParser(MoveWorkspaceToMonitorCmdArgs.init)
             case .missionControl:
                 result[kind.rawValue] = SubCommandParser(MissionControlCmdArgs.init)
-            case .pinMonitor:
-                result[kind.rawValue] = SubCommandParser(PinMonitorCmdArgs.init)
             case .smartOpen:
                 result[kind.rawValue] = SubCommandParser(parseSmartOpenCmdArgs)
             case .reloadConfig:

@@ -47,13 +47,6 @@ public enum MonitorTarget: Equatable, Sendable {
     case relative(NextPrev)
     case patterns([MonitorDescription])
 
-    public var isLetter: Bool {
-        switch self {
-            case .patterns(let patterns): patterns.contains { if case .letter = $0 { true } else { false } }
-            default: false
-        }
-    }
-
     var isPatterns: Bool {
         switch self {
             case .patterns: true

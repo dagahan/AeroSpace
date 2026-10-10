@@ -9,7 +9,6 @@ struct FocusMonitorCommand: Command {
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
         switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
             case .success(let targetMonitor):
-                if args.target.val.isLetter { noteLetterTap(onMonitor: targetMonitor.key) }
                 return .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
             case .failure(let msg): return .fail(io.err(msg))
         }

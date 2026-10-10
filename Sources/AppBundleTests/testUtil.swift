@@ -26,7 +26,6 @@ func setUpWorkspacesForTests() {
     config.persistentWorkspaces = []
     unitTestMonitors = [testMonitorInfo]
     forgetMonitorsForTests()
-    forgetPinForTests()
 
     for workspace in Workspace.all {
         for child in workspace.children {
