@@ -7,8 +7,8 @@ let rightDeskMonitor = testMonitorInfo("39260", x: 0, y: 0)
 
 @MainActor
 func setUpPerMonitorWorkspaces() {
-    config.perMonitorWorkspaces = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
-    config.floatingWorkspaces = ["1"]
+    config.perMonitorWorkspaces = ["S"]
+    config.floatingWorkspaces = ["1", "S"]
     plugTestMonitors(leftDeskMonitor, rightDeskMonitor)
     Workspace.garbageCollectUnusedWorkspaces()
 }
@@ -20,91 +20,82 @@ final class PerMonitorWorkspacesTest: XCTestCase {
         setUpPerMonitorWorkspaces()
     }
 
-    func testEveryMonitorStartsOnItsOwnFloatingOne() {
-        assertEquals(leftDeskMonitor.activeWorkspace.name, "3996-1")
-        assertEquals(rightDeskMonitor.activeWorkspace.name, "39260-1")
+    func testTheMainMonitorShowsASharedWorkspaceAndASecondaryShowsItsOwn() {
+        assertNil(rightDeskMonitor.activeWorkspace.ownerMonitorKey)
+        assertEquals(leftDeskMonitor.activeWorkspace.name, "3996-S")
         assertTrue(leftDeskMonitor.activeWorkspace.isFloatingWorkspace)
-        assertFalse(Workspace.get(byName: "3996-2").isFloatingWorkspace)
+        assertFalse(Workspace.all.contains { $0.name == "39260-S" })
     }
 
-    func testEveryConnectedMonitorKeepsItsTenWorkspaces() {
-        let names = Workspace.all.map(\.name).toSet()
-        for monitor in ["3996", "39260"] {
-            for local in config.perMonitorWorkspaces {
-                assertTrue(names.contains("\(monitor)-\(local)"))
-            }
-        }
-    }
-
-    func testWorkspaceNumberResolvesAgainstTheFocusedMonitor() async throws {
-        assertTrue(rightDeskMonitor.activeWorkspace.focusWorkspace())
-        try await parseCommand("workspace 3").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.workspace.name, "39260-3")
-        assertEquals(rightDeskMonitor.activeWorkspace.name, "39260-3")
-
+    func testAWorkspaceNumberOpensOnTheMainMonitorFromAnyMonitor() async throws {
         assertTrue(leftDeskMonitor.activeWorkspace.focusWorkspace())
         try await parseCommand("workspace 3").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(focus.workspace.name, "3996-3")
-        assertEquals(rightDeskMonitor.activeWorkspace.name, "39260-3")
+        assertEquals(focus.workspace.name, "3")
+        assertEquals(rightDeskMonitor.activeWorkspace.name, "3")
+        assertEquals(leftDeskMonitor.activeWorkspace.name, "3996-S")
+        assertTrue(Workspace.get(byName: "1").isFloatingWorkspace)
+        assertFalse(Workspace.get(byName: "3").isFloatingWorkspace)
     }
 
-    func testMoveNodeToWorkspaceNumberStaysOnTheWindowsMonitor() async throws {
-        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: "3996-2").rootTilingContainer)
+    func testMoveNodeToWorkspaceNumberLeavesFocusWhereItIs() async throws {
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: "3996-S").floatingWindowsContainer)
         assertTrue(window.focusWindow())
         try await parseCommand("move-node-to-workspace 3").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(window.nodeWorkspace?.name, "3996-3")
+        assertEquals(window.nodeWorkspace?.name, "3")
+        assertEquals(focus.workspace.name, "3996-S")
     }
 
-    func testFullNamesStillWork() async throws {
-        try await parseCommand("workspace 39260-5").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertEquals(rightDeskMonitor.activeWorkspace.name, "39260-5")
+    func testMoveNodeToMonitorByLetterLandsOnWhatThatMonitorShows() async throws {
+        try await parseCommand("workspace 4").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: "4").rootTilingContainer)
+        assertTrue(window.focusWindow())
+
+        try await parseCommand("move-node-to-monitor --focus-follows-window letter:e").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(window.nodeWorkspace?.name, "3996-S")
+        assertTrue(window.isFloating)
+        assertEquals(focus.workspace.name, "3996-S")
+
+        try await parseCommand("move-node-to-monitor --focus-follows-window letter:r").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(window.nodeWorkspace?.name, "4")
+        assertEquals(focus.workspace.name, "4")
     }
 
-    func testAWorkspaceIsNeverShownOnAnotherMonitor() {
-        assertFalse(leftDeskMonitor.setActiveWorkspace(Workspace.get(byName: "39260-3")))
-        assertEquals(Workspace.get(byName: "39260-3").forceAssignedMonitor?.key, "39260")
+    func testFocusMonitorByLetterReachesBothKinds() async throws {
+        try await parseCommand("focus-monitor letter:e").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(focus.workspace.name, "3996-S")
+        try await parseCommand("focus-monitor letter:r").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertNil(focus.workspace.ownerMonitorKey)
     }
 
-    func testAMonitorComesBackShowingWhatItShowedBefore() {
-        assertTrue(rightDeskMonitor.setActiveWorkspace(Workspace.get(byName: "39260-4")))
-        plugTestMonitors(leftDeskMonitor)
-        plugTestMonitors(leftDeskMonitor, rightDeskMonitor)
-        assertEquals(rightDeskMonitor.activeWorkspace.name, "39260-4")
+    func testAWorkspaceIsNeverShownOnAMonitorOfTheOtherKind() {
+        assertFalse(leftDeskMonitor.setActiveWorkspace(Workspace.get(byName: "3")))
+        assertFalse(rightDeskMonitor.setActiveWorkspace(Workspace.get(byName: "3996-S")))
+        assertEquals(Workspace.get(byName: "3").forceAssignedMonitor?.key, "39260")
+        assertEquals(Workspace.get(byName: "3996-S").forceAssignedMonitor?.key, "3996")
     }
 
-    func testAMonitorNeverSeenBeforeShowsItsOwnOne() {
+    func testAMonitorNeverSeenBeforeShowsItsOwnWorkspace() {
         let third = testMonitorInfo("777", x: 2560, y: 0)
         plugTestMonitors(leftDeskMonitor, rightDeskMonitor, third)
         Workspace.garbageCollectUnusedWorkspaces()
-        assertEquals(third.activeWorkspace.name, "777-1")
-        assertTrue(third.ownWorkspaces.allSatisfy(\.isEffectivelyEmpty))
+        assertEquals(third.activeWorkspace.name, "777-S")
+        assertTrue(third.activeWorkspace.isEffectivelyEmpty)
     }
 
-    func testTheStandInGetsOneWorkspaceToShowAndKeepsNoneOfItsOwn() {
+    func testTheStandInGetsNoLetterAndNoWorkspaceOfItsOwn() {
         let standIn = testMonitorInfo(standInMonitorKey, x: 0, y: 0, width: 1920, height: 1080)
         plugTestMonitors(standIn)
         Workspace.garbageCollectUnusedWorkspaces()
-        assertEquals(standIn.activeWorkspace.name, "stand-in-1")
-        assertFalse(Workspace.all.contains { $0.name == "stand-in-2" })
-    }
-}
-
-@MainActor
-final class PerMonitorWorkspaceRefusalTest: XCTestCase {
-    override func setUp() async throws {
-        setUpWorkspacesForTests()
-        setUpPerMonitorWorkspaces()
+        assertNil(standIn.letter)
+        assertNil(standIn.activeWorkspace.ownerMonitorKey)
+        assertEquals(monitorKeysOwningWorkspaces(), [])
+        assertFalse(Workspace.all.contains { $0.ownerMonitorKey == standInMonitorKey })
     }
 
-    func testAWorkspaceNoMonitorOwnsIsRefused() async throws {
-        let result = try await parseCommand("workspace foo").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertNotEquals(result.exitCode.rawValue, 0)
-        assertFalse(Workspace.all.contains { $0.name == "foo" && $0.isVisible })
-    }
-
-    func testAWorkspaceOfAnUnpluggedMonitorIsRefused() async throws {
-        plugTestMonitors(leftDeskMonitor)
-        let result = try await parseCommand("workspace 39260-3").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        assertNotEquals(result.exitCode.rawValue, 0)
+    func testTheOwnWorkspaceOfTheMainOrOfAnUnpluggedMonitorIsRefused() async throws {
+        for name in ["39260-S", "777-S"] {
+            let result = try await parseCommand("workspace \(name)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            assertNotEquals(result.exitCode.rawValue, 0)
+        }
     }
 }

@@ -6,9 +6,8 @@ private let unpluggedAt = Date(timeIntervalSinceReferenceDate: 1_000_000)
 private let withinGrace = unpluggedAt.addingTimeInterval(2)
 private let afterGrace = unpluggedAt.addingTimeInterval(3.1)
 
-private let builtinUnderTheMonitors = testMonitorInfo(builtinMonitorKey, x: 0, y: 0, width: 1512, height: 982)
-private let leftAboveTheLaptop = testMonitorInfo("3996", x: -533, y: -1440)
-private let rightAboveTheLaptop = testMonitorInfo("39260", x: 2027, y: -1440)
+private let leftAsMain = testMonitorInfo("3996", x: 0, y: 0)
+private let rightAsSecondary = testMonitorInfo("39260", x: 2560, y: 0)
 private let builtinAlone = testMonitorInfo(builtinMonitorKey, x: 0, y: 0, width: 1512, height: 982)
 private let standInAlone = testMonitorInfo(standInMonitorKey, x: 0, y: 0, width: 1920, height: 1080)
 
@@ -20,8 +19,8 @@ private func plug(_ monitors: MonitorInfoImpl..., at now: Date) {
 }
 
 @MainActor
-private func tiledWindows(_ workspaceName: String, ids: [UInt32]) -> [Window] {
-    ids.map { TestWindow.new(id: $0, parent: Workspace.get(byName: workspaceName).rootTilingContainer) }
+private func floatingWindows(_ workspaceName: String, ids: [UInt32]) -> [Window] {
+    ids.map { TestWindow.new(id: $0, parent: Workspace.get(byName: workspaceName).floatingWindowsContainer) }
 }
 
 @MainActor
@@ -34,186 +33,149 @@ final class UnpluggedMonitorsTest: XCTestCase {
     override func setUp() async throws {
         setUpWorkspacesForTests()
         setUpPerMonitorWorkspaces()
+        assertTrue(Workspace.get(byName: "3").focusWorkspace())
     }
 
-    func testS1ACableReseatedWithinTheGraceMovesNothing() {
-        _ = tiledWindows("39260-3", ids: [1, 2])
-        assertTrue(rightDeskMonitor.setActiveWorkspace(Workspace.get(byName: "39260-3")))
+    func testACableReseatedWithinTheGraceMovesNothing() {
+        _ = floatingWindows("3996-S", ids: [1, 2])
 
-        plug(leftDeskMonitor, at: unpluggedAt)
+        plug(rightDeskMonitor, at: unpluggedAt)
         plug(leftDeskMonitor, rightDeskMonitor, at: withinGrace)
         plug(leftDeskMonitor, rightDeskMonitor, at: afterGrace)
 
-        assertEquals(windowIds("39260-3"), [1, 2])
-        assertEquals(rightDeskMonitor.activeWorkspace.name, "39260-3")
+        assertEquals(windowIds("3996-S"), [1, 2])
+        assertEquals(leftDeskMonitor.activeWorkspace.name, "3996-S")
     }
 
-    func testS2AMonitorGoneForGoodJoinsTheNearestAsOneColumn() {
-        let hosts = tiledWindows("3996-3", ids: [10, 11])
-        hosts[0].setWeight(.h, 3)
-        hosts[1].setWeight(.h, 1)
-        _ = tiledWindows("39260-3", ids: [1, 2])
+    func testAMonitorGoneForGoodFloatsItsWindowsOnWhatTheMainMonitorShows() {
+        let tiled = TestWindow.new(id: 10, parent: Workspace.get(byName: "3").rootTilingContainer)
+        _ = floatingWindows("3996-S", ids: [1, 2])
 
-        plug(leftDeskMonitor, at: unpluggedAt)
-        assertEquals(windowIds("39260-3"), [1, 2])
-        plug(leftDeskMonitor, at: afterGrace)
+        plug(rightDeskMonitor, at: unpluggedAt)
+        assertEquals(windowIds("3996-S"), [1, 2])
+        plug(rightDeskMonitor, at: afterGrace)
 
-        let root = Workspace.get(byName: "3996-3").rootTilingContainer
-        assertEquals(root.children.count, 3)
-        assertEquals(hosts[0].getWeight(.h), 3)
-        assertEquals(hosts[1].getWeight(.h), 1)
-        let column = root.children.last as? TilingContainer
-        assertEquals(column?.layout, .accordion)
-        assertEquals(column?.orientation, .v)
-        assertEquals(column?.children.compactMap { ($0 as? Window)?.windowId }, [1, 2])
-        assertEquals(column?.children.compactMap { ($0 as? Window)?.homeWorkspaceName }, ["39260-3", "39260-3"])
+        assertEquals(Workspace.get(byName: "3").floatingWindows.map(\.windowId), [1, 2])
+        assertEquals(Workspace.get(byName: "3").floatingWindows.map(\.homeWorkspaceName), ["3996-S", "3996-S"])
+        assertEquals(Workspace.get(byName: "3").rootTilingContainer.children.count, 1)
+        assertFalse(tiled.isFloating)
     }
 
-    func testS3VisitorsGoHomeInTheirOrderWhenTheMonitorReturns() {
-        _ = tiledWindows("3996-3", ids: [10, 11])
-        _ = tiledWindows("39260-3", ids: [1, 2, 3])
-        plug(leftDeskMonitor, at: unpluggedAt)
-        plug(leftDeskMonitor, at: afterGrace)
+    func testVisitorsGoHomeWhenTheMonitorReturns() {
+        _ = TestWindow.new(id: 10, parent: Workspace.get(byName: "3").rootTilingContainer)
+        _ = floatingWindows("3996-S", ids: [1, 2, 3])
+        plug(rightDeskMonitor, at: unpluggedAt)
+        plug(rightDeskMonitor, at: afterGrace)
 
         plug(leftDeskMonitor, rightDeskMonitor, at: afterGrace.addingTimeInterval(60))
-        Workspace.get(byName: "3996-3").normalizeContainers()
 
-        assertEquals(windowIds("39260-3"), [1, 2, 3])
-        assertEquals(windowIds("3996-3"), [10, 11])
-        assertEquals(Workspace.get(byName: "3996-3").rootTilingContainer.children.count, 2)
+        assertEquals(windowIds("3996-S"), [1, 2, 3])
+        assertEquals(windowIds("3"), [10])
         assertNil(Window.get(byId: 1)?.homeWorkspaceName)
     }
 
-    func testS4AVisitorMovedByHandStaysWhereItWasPut() async throws {
-        _ = tiledWindows("39260-3", ids: [1, 2])
-        plug(leftDeskMonitor, at: unpluggedAt)
-        plug(leftDeskMonitor, at: afterGrace)
+    func testAVisitorMovedByHandStaysWhereItWasPut() async throws {
+        _ = floatingWindows("3996-S", ids: [1, 2])
+        plug(rightDeskMonitor, at: unpluggedAt)
+        plug(rightDeskMonitor, at: afterGrace)
 
         assertTrue(Window.get(byId: 2).orDie().focusWindow())
         try await parseCommand("move-node-to-workspace 5").cmdOrDie.run(.defaultEnv, .emptyStdin)
         plug(leftDeskMonitor, rightDeskMonitor, at: afterGrace.addingTimeInterval(60))
 
-        assertEquals(windowIds("3996-5"), [2])
-        assertEquals(windowIds("39260-3"), [1])
+        assertEquals(windowIds("5"), [2])
+        assertEquals(windowIds("3996-S"), [1])
     }
 
-    func testS5FloatingWindowsStayFloatingBothWays() {
-        let floating = TestWindow.new(id: 1, parent: Workspace.get(byName: "39260-1").floatingWindowsContainer)
-        plug(leftDeskMonitor, at: unpluggedAt)
-        plug(leftDeskMonitor, at: afterGrace)
-        assertEquals(floating.nodeWorkspace?.name, "3996-1")
-        assertTrue(floating.isFloating)
+    func testAMonitorThatBecomesMainFloatsItsWindowsOnTheVisibleWorkspaceAtOnce() {
+        _ = floatingWindows("3996-S", ids: [1])
 
-        plug(leftDeskMonitor, rightDeskMonitor, at: afterGrace.addingTimeInterval(60))
-        assertEquals(floating.nodeWorkspace?.name, "39260-1")
-        assertTrue(floating.isFloating)
+        plug(leftAsMain, rightAsSecondary, at: unpluggedAt)
+
+        assertEquals(leftAsMain.activeWorkspace.name, "3")
+        assertEquals(rightAsSecondary.activeWorkspace.name, "39260-S")
+        assertEquals(Workspace.get(byName: "3").floatingWindows.map(\.windowId), [1])
+        assertEquals(Window.get(byId: 1)?.homeWorkspaceName, "3996-S")
     }
 
-    func testS6UndockingBringsTheLaptopsWindowsHomeAtOnceAndTheMonitorsAfterTheGrace() {
-        plug(builtinUnderTheMonitors, leftAboveTheLaptop, rightAboveTheLaptop, at: unpluggedAt.addingTimeInterval(-100))
-        _ = tiledWindows("builtin-2", ids: [20])
-        plug(leftAboveTheLaptop, rightAboveTheLaptop, at: unpluggedAt.addingTimeInterval(-50))
-        plug(leftAboveTheLaptop, rightAboveTheLaptop, at: unpluggedAt.addingTimeInterval(-40))
-        assertEquals(windowIds("3996-2"), [20])
+    func testAMonitorThatStopsBeingMainTakesItsWindowsBack() {
+        _ = floatingWindows("3996-S", ids: [1])
+        plug(leftAsMain, rightAsSecondary, at: unpluggedAt)
+        _ = floatingWindows("39260-S", ids: [2])
 
-        _ = tiledWindows("3996-4", ids: [1])
-        _ = tiledWindows("39260-4", ids: [2])
+        plug(leftDeskMonitor, rightDeskMonitor, at: unpluggedAt.addingTimeInterval(1))
+
+        assertEquals(windowIds("3996-S"), [1])
+        assertEquals(rightDeskMonitor.activeWorkspace.name, "3")
+        assertEquals(Workspace.get(byName: "3").floatingWindows.map(\.windowId), [2])
+        assertEquals(Window.get(byId: 2)?.homeWorkspaceName, "39260-S")
+    }
+
+    func testUndockingToTheLaptopBringsEveryMonitorsWindowsAfterTheGrace() {
+        _ = floatingWindows("3996-S", ids: [1])
         plug(builtinAlone, at: unpluggedAt)
-        assertEquals(windowIds("builtin-2"), [20])
-        assertEquals(windowIds("builtin-4"), [])
+        assertEquals(builtinAlone.activeWorkspace.name, "3")
+        assertEquals(windowIds("3996-S"), [1])
 
         plug(builtinAlone, at: afterGrace)
-        assertEquals(windowIds("builtin-4").toSet(), [1, 2])
+        assertEquals(windowIds("3"), [1])
     }
 
-    func testS7NothingIsEverMergedIntoTheStandIn() {
-        _ = tiledWindows("3996-4", ids: [1])
-        _ = tiledWindows("39260-4", ids: [2])
+    func testNothingIsEverMergedIntoTheStandIn() {
+        _ = floatingWindows("3996-S", ids: [1])
         plug(standInAlone, at: unpluggedAt)
         plug(standInAlone, at: afterGrace)
-        assertEquals(windowIds("3996-4"), [1])
-        assertEquals(windowIds("39260-4"), [2])
-        assertFalse(Workspace.all.contains { $0.ownerMonitorKey == standInMonitorKey && !$0.isEffectivelyEmpty })
+        assertEquals(windowIds("3996-S"), [1])
 
         plug(builtinAlone, at: afterGrace.addingTimeInterval(1))
-        assertEquals(windowIds("builtin-4").toSet(), [1, 2])
+        assertEquals(windowIds("3"), [1])
     }
 
-    func testS7WindowsBornOnTheStandInMoveToTheRealMonitorAtOnce() {
-        plug(standInAlone, at: unpluggedAt)
-        _ = tiledWindows("stand-in-1", ids: [7])
-        plug(builtinAlone, at: unpluggedAt.addingTimeInterval(1.2))
-        assertEquals(windowIds("builtin-1"), [7])
-        assertNil(Window.get(byId: 7)?.homeWorkspaceName)
-    }
-
-    func testS8AMonitorNeverSeenBeforeTakesNothing() {
-        _ = tiledWindows("3996-2", ids: [1])
+    func testAMonitorNeverSeenBeforeTakesNothing() {
+        _ = TestWindow.new(id: 1, parent: Workspace.get(byName: "3").rootTilingContainer)
         let third = testMonitorInfo("777", x: 2560, y: 0)
         plug(leftDeskMonitor, rightDeskMonitor, third, at: unpluggedAt)
         plug(leftDeskMonitor, rightDeskMonitor, third, at: afterGrace)
-        assertEquals(windowIds("3996-2"), [1])
-        assertTrue(third.ownWorkspaces.allSatisfy(\.isEffectivelyEmpty))
+        assertEquals(windowIds("3"), [1])
+        assertTrue(third.activeWorkspace.isEffectivelyEmpty)
     }
 
-    func testS9HomesSurviveARestartWhileTheMonitorIsAway() {
-        _ = tiledWindows("39260-3", ids: [1, 2])
-        plug(leftDeskMonitor, at: unpluggedAt)
-        plug(leftDeskMonitor, at: afterGrace)
+    func testHomesSurviveARestartWhileTheMonitorIsAway() {
+        _ = floatingWindows("3996-S", ids: [1, 2])
+        plug(rightDeskMonitor, at: unpluggedAt)
+        plug(rightDeskMonitor, at: afterGrace)
 
         forgetMonitorsForTests()
-        plug(leftDeskMonitor, at: afterGrace.addingTimeInterval(10))
-        assertEquals(windowIds("3996-3"), [1, 2])
+        plug(rightDeskMonitor, at: afterGrace.addingTimeInterval(10))
+        assertEquals(Window.get(byId: 1)?.homeWorkspaceName, "3996-S")
 
         plug(leftDeskMonitor, rightDeskMonitor, at: afterGrace.addingTimeInterval(20))
-        assertEquals(windowIds("39260-3"), [1, 2])
+        assertEquals(windowIds("3996-S"), [1, 2])
     }
 
     func testARestartAfterAnUnplugStillMovesTheWindowsOnceTheGraceEnds() {
-        _ = tiledWindows("39260-3", ids: [1])
+        _ = floatingWindows("3996-S", ids: [1])
         forgetMonitorsForTests()
-        plug(leftDeskMonitor, at: unpluggedAt)
-        assertEquals(windowIds("39260-3"), [1])
-        plug(leftDeskMonitor, at: afterGrace)
-        assertEquals(windowIds("3996-3"), [1])
+        plug(rightDeskMonitor, at: unpluggedAt)
+        assertEquals(windowIds("3996-S"), [1])
+        plug(rightDeskMonitor, at: afterGrace)
+        assertEquals(rightDeskMonitor.activeWorkspace.floatingWindows.map(\.windowId), [1])
     }
 
     func testFocusFollowsTheFocusedWindowWhenItsMonitorGoesAway() {
-        let window = tiledWindows("39260-5", ids: [1])[0]
+        let window = floatingWindows("3996-S", ids: [1])[0]
         assertTrue(window.focusWindow())
-        plug(leftDeskMonitor, at: unpluggedAt)
-        plug(leftDeskMonitor, at: afterGrace)
+        plug(rightDeskMonitor, at: unpluggedAt)
+        plug(rightDeskMonitor, at: afterGrace)
         assertEquals(focus.windowOrNil?.windowId, 1)
-        assertEquals(focus.workspace.name, "3996-5")
-        assertEquals(leftDeskMonitor.activeWorkspace.name, "3996-5")
+        assertEquals(focus.workspace.name, "3")
     }
 
     func testHomeIsSavedAndOldStateFilesStillLoad() throws {
-        let saved = SavedWindow(workspace: "3996-3", isFloating: false, order: 0, home: "39260-3")
+        let saved = SavedWindow(workspace: "3", isFloating: true, order: 0, home: "39260-S")
         let decoded = try JSONDecoder().decode(SavedWindow.self, from: JSONEncoder().encode(saved))
-        assertEquals(decoded.home, "39260-3")
+        assertEquals(decoded.home, "39260-S")
         let old = try JSONDecoder().decode(SavedWindow.self, from: Data(#"{"workspace":"3","isFloating":false,"order":0}"#.utf8))
         assertNil(old.home)
-    }
-}
-
-@MainActor
-final class TurningOnPerMonitorWorkspacesTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
-
-    func testEachOldWorkspaceMovesToTheMonitorItWasShownOn() {
-        plugTestMonitors(leftDeskMonitor, rightDeskMonitor)
-        _ = TestWindow.new(id: 1, parent: Workspace.get(byName: "3").rootTilingContainer)
-        _ = TestWindow.new(id: 2, parent: Workspace.get(byName: "4").rootTilingContainer)
-        assertTrue(leftDeskMonitor.setActiveWorkspace(Workspace.get(byName: "3")))
-        assertTrue(rightDeskMonitor.setActiveWorkspace(Workspace.get(byName: "4")))
-
-        config.perMonitorWorkspaces = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
-        gcMonitors()
-
-        assertEquals(Workspace.get(byName: "3996-3").allLeafWindowsRecursive.map(\.windowId), [1])
-        assertEquals(Workspace.get(byName: "39260-4").allLeafWindowsRecursive.map(\.windowId), [2])
-        assertEquals(leftDeskMonitor.activeWorkspace.ownerMonitorKey, "3996")
-        assertEquals(rightDeskMonitor.activeWorkspace.ownerMonitorKey, "39260")
     }
 }

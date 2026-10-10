@@ -77,7 +77,7 @@ enum AxPermissionStatus: Equatable {
         let workspace = monitor.activeWorkspace
         return TrayItem(
             type: .workspace,
-            name: String(letter).uppercased() + workspace.localName + (monitor.key == pinnedMonitorKey ? "📌" : ""),
+            name: String(letter).uppercased() + (workspace.ownerMonitorKey == nil ? workspace.name : ""),
             isActive: workspace == focus.workspace,
             hasFullscreenWindows: workspace.allLeafWindowsRecursive.contains { $0.isFullscreen },
         )

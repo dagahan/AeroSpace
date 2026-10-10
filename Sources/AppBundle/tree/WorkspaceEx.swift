@@ -53,8 +53,9 @@ extension Workspace {
 
     @MainActor var forceAssignedMonitor: MonitorInfo? {
         if let owner = ownerMonitorKey {
-            return monitorInfos.first { $0.key == owner }
+            return monitorInfos.first { $0.key == owner && !$0.isMain }
         }
+        if perMonitorWorkspacesAreOn { return mainMonitorInfo }
         guard let monitorDescriptions = config.workspaceToMonitorForceAssignment[name] else { return nil }
         let sortedMonitors = sortedMonitorInfos
         return monitorDescriptions.lazy

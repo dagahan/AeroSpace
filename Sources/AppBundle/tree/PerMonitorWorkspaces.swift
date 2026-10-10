@@ -44,15 +44,12 @@ extension MonitorInfo {
 }
 
 @MainActor func whyWorkspaceCantBeUsed(_ name: String) -> String? {
-    guard perMonitorWorkspacesAreOn else { return nil }
-    guard let parsed = parsePerMonitorWorkspaceName(name) else {
-        return "Workspace '\(name)' belongs to no monitor. Use one of per-monitor-workspaces: \(config.perMonitorWorkspaces.joined(separator: " "))"
-    }
-    return monitorKeysOwningWorkspaces().contains(parsed.ownerMonitorKey)
+    guard let owner = parsePerMonitorWorkspaceName(name)?.ownerMonitorKey else { return nil }
+    return monitorKeysOwningWorkspaces().contains(owner)
         ? nil
-        : "Workspace '\(name)' belongs to monitor '\(parsed.ownerMonitorKey)', which is not connected"
+        : "Workspace '\(name)' belongs to monitor '\(owner)', which is not a connected secondary monitor"
 }
 
 @MainActor func monitorKeysOwningWorkspaces() -> Set<String> {
-    perMonitorWorkspacesAreOn ? monitorInfos.filter { !$0.isStandIn }.map(\.key).toSet() : []
+    perMonitorWorkspacesAreOn ? monitorInfos.filter { !$0.isStandIn && !$0.isMain }.map(\.key).toSet() : []
 }
