@@ -23,6 +23,7 @@ struct MiniWorkspace: Identifiable {
     @Published var appeared = false
     let monitorLetter: String?
     let workspaceNames: [String]
+    var showsWorkspaces: Bool { !workspaceNames.isEmpty }
 
     init(monitorLetter: String?, workspaceNames: [String]) {
         self.monitorLetter = monitorLetter
@@ -80,12 +81,11 @@ private struct MissionControlScreen {
 
     static func show() {
         if isShown { return }
-        let focusedMonitorKey = focus.workspace.workspaceMonitor.key
         let targets = overlayScreens()
         for target in targets {
             let viewModel = MissionControlViewModel(monitorLetter: target.letter, workspaceNames: target.workspaceNames)
             viewModel.workspaces = capture(viewModel.workspaceNames)
-            viewModel.selectedName = target.monitor.key == focusedMonitorKey ? focus.workspace.name : target.monitor.activeWorkspace.name
+            viewModel.selectedName = target.monitor.activeWorkspace.name
             // nonactivatingPanel: must display and take keyboard even when macOS
             // denies app activation (a freshly relaunched accessory app always is denied).
             let p = MissionControlPanel(
@@ -95,6 +95,7 @@ private struct MissionControlScreen {
                 defer: false,
             )
             p.model = viewModel
+            p.ignoresMouseEvents = !viewModel.showsWorkspaces
             p.level = .popUpMenu
             p.isOpaque = false
             p.backgroundColor = .clear
@@ -105,7 +106,7 @@ private struct MissionControlScreen {
             ))
             overlays.append(MissionControlOverlay(panel: p, model: viewModel))
         }
-        let keyOverlayIndex = targets.firstIndex { $0.monitor.key == focusedMonitorKey } ?? 0
+        let keyOverlayIndex = overlays.firstIndex(where: \.model.showsWorkspaces) ?? 0
         NSApp.activate(ignoringOtherApps: true)
         for (index, overlay) in overlays.enumerated() where index != keyOverlayIndex {
             overlay.panel.orderFrontRegardless()
@@ -144,13 +145,13 @@ private struct MissionControlScreen {
             let screen = NSScreen.main ?? screens[0]
             return [MissionControlScreen(screen: screen, monitor: mainMonitorInfo, letter: nil, workspaceNames: workspaceOrder)]
         }
-        return monitorsInLetterOrder(sortedMonitorInfos).compactMap { monitor, letter in
+        return sortedMonitorInfos.filter { $0.isMain || $0.letter != nil }.compactMap { monitor in
             screens.getOrNil(atIndex: monitor.monitorAppKitNsScreenScreensId - 1).map { screen in
                 MissionControlScreen(
                     screen: screen,
                     monitor: monitor,
-                    letter: String(letter).uppercased(),
-                    workspaceNames: monitor.ownWorkspaces.map(\.name),
+                    letter: monitor.letter.map { String($0).uppercased() },
+                    workspaceNames: monitor.isMain ? workspaceOrder : [],
                 )
             }
         }
@@ -283,7 +284,7 @@ private struct MissionControlScreen {
 
 private final class MissionControlPanel: NSPanel {
     var model: MissionControlViewModel? = nil
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { model?.showsWorkspaces ?? true }
 
     override func keyDown(with event: NSEvent) {
         guard let model else { return super.keyDown(with: event) }
@@ -316,26 +317,35 @@ private final class MissionControlPanel: NSPanel {
     }
 }
 
+private let monitorLetterTopInset: CGFloat = 48
+
 struct MissionControlView: View {
     @ObservedObject var model: MissionControlViewModel
     let monitorAspect: CGFloat
 
     var body: some View {
-        ZStack {
-            BlurView()
-            Color.black.opacity(0.25)
-            VStack(spacing: 28) {
-                if let letter = model.monitorLetter {
-                    Text(letter)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.9))
+        ZStack(alignment: .top) {
+            if model.showsWorkspaces {
+                BlurView()
+                Color.black.opacity(0.25)
+                VStack(spacing: 28) {
+                    row(Array(model.workspaces.prefix(5)), startIndex: 0)
+                    row(Array(model.workspaces.suffix(5)), startIndex: 5)
                 }
-                row(Array(model.workspaces.prefix(5)), startIndex: 0)
-                row(Array(model.workspaces.suffix(5)), startIndex: 5)
+                .padding(.horizontal, 48)
+                .padding(.vertical, monitorLetterTopInset + 68)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(model.appeared ? 1 : 0.98)
             }
-            .padding(48)
-            .scaleEffect(model.appeared ? 1 : 0.98)
+            if let letter = model.monitorLetter {
+                Text(letter)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.9))
+                    .shadow(color: .black.opacity(0.85), radius: 6)
+                    .padding(.top, monitorLetterTopInset)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .opacity(model.appeared ? 1 : 0)
         .ignoresSafeArea()
     }
