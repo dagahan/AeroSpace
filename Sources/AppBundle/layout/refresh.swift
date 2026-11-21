@@ -41,6 +41,7 @@ func runHeavyCompleteRefreshSession(
             await refreshModel_nonCancellable()
             try await refresh()
             gcMonitors()
+            takeFocusBackIfMacOsTookItAway()
 
             updateTrayText()
             SecureInputPanel.shared.refresh()

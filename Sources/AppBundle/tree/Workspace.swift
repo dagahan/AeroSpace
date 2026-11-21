@@ -182,6 +182,9 @@ func gcMonitors(now: Date = .now) {
     if perMonitorWorkspacesAreOn {
         followUnpluggedAndReturningMonitors(monitors, now: now)
     }
+    if !focus.workspace.isVisible {
+        _ = focus.workspace.workspaceMonitor.setActiveWorkspace(focus.workspace)
+    }
 }
 
 private func monitorKeyToScreenPoint(_ monitors: [MonitorInfo]) -> [String: CGPoint] {

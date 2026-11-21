@@ -1,6 +1,8 @@
-import Foundation
+import AppKit
 
 @MainActor private var lastKnownNativeFocusedWindowId: UInt32? = nil
+@MainActor private var lastKnownFrontmostApp: NSRunningApplication? = nil
+@MainActor private var macOsTookFocusAway = false
 
 /// The data should flow (from nativeFocused to focused) and
 ///                      (from nativeFocused to lastKnownNativeFocusedWindowId)
@@ -20,16 +22,43 @@ import Foundation
     if nativeFocused?.parent is MacosPopupWindowsContainer {
         return
     }
+    let previousFrontmostApp = lastKnownFrontmostApp
+    lastKnownFrontmostApp = NSWorkspace.shared.frontmostApplication
     if nativeFocused?.windowId != lastKnownNativeFocusedWindowId {
-        // Don't follow macOS auto-activation of another app right after the last
-        // window on the focused workspace was closed. Stay on the empty workspace.
-        let stayOnEmptiedWorkspace = focus.workspace.name == lastEmptiedFocusedWorkspaceName
-            && lastEmptiedFocusedWorkspaceDate.distance(to: .now) < 1
-            && nativeFocused?.nodeWorkspace != focus.workspace
-        if !stayOnEmptiedWorkspace && .now >= suppressWorkspaceFollowUntil {
-            _ = nativeFocused?.focusWindow()
+        if .now >= suppressWorkspaceFollowUntil, let nativeFocused {
+            // Don't follow macOS auto-activation of another app right after the last
+            // window on the focused workspace was closed. Stay on the empty workspace.
+            let stayOnEmptiedWorkspace = focus.workspace.name == lastEmptiedFocusedWorkspaceName
+                && lastEmptiedFocusedWorkspaceDate.distance(to: .now) < 1
+            let macOsReplacedVanishedFocus = previousFrontmostApp?.hasExited == true
+                || lastKnownNativeFocusedWindowId.map(hasLeftTheScreen) == true
+            macOsTookFocusAway = nativeFocused.nodeWorkspace != focus.workspace && (stayOnEmptiedWorkspace || macOsReplacedVanishedFocus)
+            if !macOsTookFocusAway {
+                _ = nativeFocused.focusWindow()
+            }
         }
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
     nativeFocused?.macAppUnsafe.lastNativeFocusedWindowId = nativeFocused?.windowId
+}
+
+@MainActor func takeFocusBackIfMacOsTookItAway() {
+    guard macOsTookFocusAway else { return }
+    macOsTookFocusAway = false
+    if let window = focus.windowOrNil {
+        window.nativeFocus()
+    } else {
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+@MainActor private func hasLeftTheScreen(_ windowId: UInt32) -> Bool {
+    guard let window = MacWindow.allWindowsMap[windowId] else { return true }
+    if window.parent is MacosFullscreenWindowsContainer { return false }
+    let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(windowId)) as? [[String: Any]]
+    return info?.first?[kCGWindowIsOnscreen as String] as? Bool != true
+}
+
+extension NSRunningApplication {
+    fileprivate var hasExited: Bool { kill(processIdentifier, 0) == -1 && errno == ESRCH }
 }
