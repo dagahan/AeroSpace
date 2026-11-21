@@ -30,9 +30,7 @@ import Foundation
             layoutWorkspaces: false,
         )
         try await runLightSession(.startup, .forceRun) {
-            if !RestoreState.restoreLayoutAfterStartup() {
-                smartLayoutAtStartup()
-            }
+            _ = RestoreState.restoreLayoutAfterStartup()
             _ = await config.afterStartupCommand.run(.defaultEnv, .emptyStdin)
         }
         await syncModeToFocusedWorkspace()
@@ -49,16 +47,6 @@ import Foundation
         \(result.stdout)
         """
     check(result.isOk, msg)
-}
-
-@MainActor
-private func smartLayoutAtStartup() {
-    let workspace = focus.workspace
-    let root = workspace.rootTilingContainer
-    switch root.children.count <= 3 {
-        case true: root.layout = .tiles
-        case false: root.layout = .accordion
-    }
 }
 
 var isStartup: Bool { refreshSessionEvent?.isStartup == true }

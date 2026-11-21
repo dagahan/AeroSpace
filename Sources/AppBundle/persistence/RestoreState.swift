@@ -139,7 +139,7 @@ struct SavedState: Codable {
             if restoredWindows.isEmpty { continue }
             restoredAnything = true
             root.changeOrientation(savedLayout.orientation == "v" ? .v : .h)
-            root.layout = savedLayout.layout.parseLayout() ?? root.layout
+            root.layout = .tiles
             for (i, pair) in restoredWindows.sorted(by: { $0.1.order < $1.1.order }).enumerated() {
                 pair.0.bind(to: root, adaptiveWeight: pair.1.weight.map { CGFloat($0) } ?? WEIGHT_AUTO, index: i)
             }
