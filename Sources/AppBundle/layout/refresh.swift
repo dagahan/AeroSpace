@@ -34,18 +34,18 @@ func runHeavyCompleteRefreshSession(
         try await $refreshSessionEvent.withValue(event) {
             let nativeFocused = try await getNativeFocusedWindow(.cancellable)
             if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
-            updateFocusCache(nativeFocused)
+            try await updateFocusCache(nativeFocused)
 
             if shouldLayoutWorkspaces && optimisticallyPreLayoutWorkspaces { try await layoutWorkspaces() }
 
             await refreshModel_nonCancellable()
             try await refresh()
             gcMonitors()
-            takeFocusBackIfMacOsTookItAway()
 
             updateTrayText()
             SecureInputPanel.shared.refresh()
             try await normalizeLayoutReason()
+            takeFocusBackIfMacOsTookItAway()
             if shouldLayoutWorkspaces { try await layoutWorkspaces() }
         }
     }
@@ -69,7 +69,7 @@ func runLightSession<T>(
     return try await $refreshSessionEvent.withValue(event) {
         let nativeFocused = try await getNativeFocusedWindow(.cancellable)
         if let nativeFocused { try await debugWindowsIfRecording(nativeFocused, .cancellable) }
-        updateFocusCache(nativeFocused)
+        try await updateFocusCache(nativeFocused)
         let focusBefore = focus.windowOrNil
 
         await refreshModel_nonCancellable()
